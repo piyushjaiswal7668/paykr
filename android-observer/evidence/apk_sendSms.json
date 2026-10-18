@@ -1,0 +1,130 @@
+{
+  "evidence_id": "ev_37ae810047f44d7ba11cc6b819aa7eaf232cefdc32817190d3ea3bbadcb49b70",
+  "subject": {
+    "name": "paykr-sms-gateway.apk",
+    "digest": {
+      "sha256": "aa057e5e3c2ae60a48d66d846c960272bc5b65eef8c3cce16f5953808a97405e"
+    },
+    "local_path": "/Applications/XAMPP/xamppfiles/htdocs/Paykr/storage/app/private/releases/paykr-sms-gateway.apk",
+    "format": "apk",
+    "architecture": null
+  },
+  "provider": {
+    "id": "jadx",
+    "name": "JADX headless",
+    "version": "0.7.1"
+  },
+  "analysis_profile": null,
+  "predicate_type": "rea.analysis",
+  "operation": "inspect_android_method",
+  "parameters": {
+    "path": "/Applications/XAMPP/xamppfiles/htdocs/Paykr/storage/app/private/releases/paykr-sms-gateway.apk",
+    "class_name": "com.youpi.observer.ApiClient",
+    "method_name": "sendSms"
+  },
+  "raw_result": {
+    "server": {
+      "name": "rea-jadx-bridge",
+      "version": "1"
+    },
+    "bridge_sha256": "40c6972bc7e1689e09979b64ba49ba04b9c05e49976b838315d63d6415e762ba",
+    "jar_sha256": "6e5eacf500b64292bfb73c49797c1958f6ee44646e43e868039ae7feb573ff75",
+    "loaded": {
+      "state": "LOADED",
+      "apk_path": "/var/folders/nz/6g2cdqx97877_dpxmtcrvgx40000gn/T/rea-android-jShzbX/target.apk",
+      "class_count": 250,
+      "resource_count": 7,
+      "threads": 1,
+      "resources": "full"
+    },
+    "calls": [
+      {
+        "operation": "rea_jvm_status",
+        "input": {},
+        "response": {
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"metadata_scope\":\"parsed_members\",\"max_heap_bytes\":8589934592,\"java_version\":\"23.0.2\",\"available_processors\":10,\"engine_reported_version\":\"0.7.1\"}"
+            }
+          ],
+          "isError": false
+        }
+      },
+      {
+        "operation": "get_class_summary",
+        "input": {
+          "class_name": "com.youpi.observer.ApiClient"
+        },
+        "response": {
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"methods\":[{\"signature\":\"\\u003cinit\\u003e(android.content.Context): void\",\"def_pos\":0,\"name\":\"\\u003cinit\\u003e\",\"is_constructor\":true,\"dex_descriptor\":\"(Landroid/content/Context;)V\"},{\"signature\":\"calculateHmacSha256(java.lang.String, java.lang.String): java.lang.String\",\"def_pos\":0,\"name\":\"calculateHmacSha256\",\"is_constructor\":false,\"dex_descriptor\":\"(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;\"},{\"signature\":\"getBaseUrl(): java.lang.String\",\"def_pos\":0,\"name\":\"getBaseUrl\",\"is_constructor\":false,\"dex_descriptor\":\"()Ljava/lang/String;\"},{\"signature\":\"getDeviceId(): java.lang.String\",\"def_pos\":0,\"name\":\"getDeviceId\",\"is_constructor\":false,\"dex_descriptor\":\"()Ljava/lang/String;\"},{\"signature\":\"isPaired(): boolean\",\"def_pos\":0,\"name\":\"isPaired\",\"is_constructor\":false,\"dex_descriptor\":\"()Z\"},{\"signature\":\"pair(java.lang.String, java.lang.String, java.lang.String): boolean\",\"def_pos\":0,\"name\":\"pair\",\"is_constructor\":false,\"dex_descriptor\":\"(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z\"},{\"signature\":\"pair(java.lang.String, java.lang.String, java.lang.String, java.lang.String, java.lang.String, long): boolean\",\"def_pos\":0,\"name\":\"pair\",\"is_constructor\":false,\"dex_descriptor\":\"(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;J)Z\"},{\"signature\":\"postJson(java.lang.String, java.lang.String, java.lang.String, java.lang.String, java.lang.String): java.lang.String\",\"def_pos\":0,\"name\":\"postJson\",\"is_constructor\":false,\"dex_descriptor\":\"(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;\"},{\"signature\":\"sendHeartbeat(): boolean\",\"def_pos\":0,\"name\":\"sendHeartbeat\",\"is_constructor\":false,\"dex_descriptor\":\"()Z\"},{\"signature\":\"sendObservation(long, double, java.lang.String, java.lang.String, java.lang.String, java.lang.String): boolean\",\"def_pos\":0,\"name\":\"sendObservation\",\"is_constructor\":false,\"dex_descriptor\":\"(JDLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z\"},{\"signature\":\"sendSms(java.lang.String, java.lang.String, long): boolean\",\"def_pos\":0,\"name\":\"sendSms\",\"is_constructor\":false,\"dex_descriptor\":\"(Ljava/lang/String;Ljava/lang/String;J)Z\"},{\"signature\":\"unpair(): void\",\"def_pos\":0,\"name\":\"unpair\",\"is_constructor\":false,\"dex_descriptor\":\"()V\"}],\"method_count\":12,\"inner_class_count\":0,\"inner_classes\":[],\"name\":\"ApiClient\",\"full_name\":\"com.youpi.observer.ApiClient\",\"field_count\":4,\"fields\":[{\"type\":\"java.lang.String\",\"def_pos\":0,\"name\":\"PREFS_NAME\"},{\"type\":\"java.lang.String\",\"def_pos\":0,\"name\":\"TAG\"},{\"type\":\"android.content.Context\",\"def_pos\":0,\"name\":\"context\"},{\"type\":\"android.content.SharedPreferences\",\"def_pos\":0,\"name\":\"prefs\"}]}"
+            }
+          ],
+          "isError": false
+        }
+      },
+      {
+        "operation": "get_method_body",
+        "input": {
+          "class_name": "com.youpi.observer.ApiClient",
+          "method_name": "sendSms",
+          "overload_index": 0,
+          "smali_fallback": true
+        },
+        "response": {
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"markers\":[],\"mode\":\"java\",\"full_name\":\"com.youpi.observer.ApiClient.sendSms\",\"class_name\":\"com.youpi.observer.ApiClient\",\"overload_index\":0,\"fell_back\":false,\"body\":\"    public boolean sendSms(String str, String str2, long j) throws Throwable {\\n        if (!isPaired()) {\\n            return false;\\n        }\\n        String string \\u003d this.prefs.getString(\\\"device_id\\\", null);\\n        String string2 \\u003d this.prefs.getString(\\\"signing_key\\\", null);\\n        String str3 \\u003d getBaseUrl() + \\\"/api/v1/observers/sms\\\";\\n        if (j \\u003c\\u003d 0) {\\n            try {\\n                j \\u003d System.currentTimeMillis();\\n            } catch (Exception e) {\\n                Log.e(TAG, \\\"sendSms error: \\\" + e.getMessage(), e);\\n                return false;\\n            }\\n        }\\n        String strValueOf \\u003d String.valueOf(j);\\n        JSONObject jSONObject \\u003d new JSONObject();\\n        jSONObject.put(\\\"deviceId\\\", string);\\n        if (str \\u003d\\u003d null) {\\n            str \\u003d \\\"UNKNOWN\\\";\\n        }\\n        jSONObject.put(\\\"sender\\\", str);\\n        if (str2 \\u003d\\u003d null) {\\n            str2 \\u003d \\\"\\\";\\n        }\\n        jSONObject.put(\\\"body\\\", str2);\\n        jSONObject.put(\\\"timestamp\\\", Long.parseLong(strValueOf));\\n        String string3 \\u003d jSONObject.toString();\\n        String strPostJson \\u003d postJson(str3, string3, string, strValueOf, calculateHmacSha256(string3 + \\\":\\\" + strValueOf, string2));\\n        Log.i(TAG, \\\"SMS dispatched to YouPI Gateway: \\\" + (strPostJson !\\u003d null ? \\\"OK\\\" : \\\"FAILED\\\"));\\n        return strPostJson !\\u003d null;\\n    }\",\"overload_count\":1,\"method_name\":\"sendSms\"}"
+            }
+          ],
+          "isError": false
+        }
+      }
+    ]
+  },
+  "normalized_result": {
+    "engine": {
+      "name": "jadx-headless-mcp",
+      "version": "0.7.1",
+      "artifact_sha256": "6e5eacf500b64292bfb73c49797c1958f6ee44646e43e868039ae7feb573ff75",
+      "source_revision": "5844800a486d2248fa949b74c9896285f5b54de2",
+      "worker_count": 1,
+      "heap_limit_mib": 8192
+    },
+    "class_name": "com.youpi.observer.ApiClient",
+    "method": {
+      "name": "sendSms",
+      "reported_signature": "sendSms(java.lang.String, java.lang.String, long): boolean",
+      "overload_index": 0,
+      "is_constructor": false,
+      "dex_descriptor": "(Ljava/lang/String;Ljava/lang/String;J)Z"
+    },
+    "overload_count": 1,
+    "representation": "java",
+    "body_status": "available",
+    "fell_back": false,
+    "markers": [],
+    "source": {
+      "status": "complete",
+      "text": "    public boolean sendSms(String str, String str2, long j) throws Throwable {\n        if (!isPaired()) {\n            return false;\n        }\n        String string = this.prefs.getString(\"device_id\", null);\n        String string2 = this.prefs.getString(\"signing_key\", null);\n        String str3 = getBaseUrl() + \"/api/v1/observers/sms\";\n        if (j <= 0) {\n            try {\n                j = System.currentTimeMillis();\n            } catch (Exception e) {\n                Log.e(TAG, \"sendSms error: \" + e.getMessage(), e);\n                return false;\n            }\n        }\n        String strValueOf = String.valueOf(j);\n        JSONObject jSONObject = new JSONObject();\n        jSONObject.put(\"deviceId\", string);\n        if (str == null) {\n            str = \"UNKNOWN\";\n        }\n        jSONObject.put(\"sender\", str);\n        if (str2 == null) {\n            str2 = \"\";\n        }\n        jSONObject.put(\"body\", str2);\n        jSONObject.put(\"timestamp\", Long.parseLong(strValueOf));\n        String string3 = jSONObject.toString();\n        String strPostJson = postJson(str3, string3, string, strValueOf, calculateHmacSha256(string3 + \":\" + strValueOf, string2));\n        Log.i(TAG, \"SMS dispatched to YouPI Gateway: \" + (strPostJson != null ? \"OK\" : \"FAILED\"));\n        return strPostJson != null;\n    }",
+      "reported_total_bytes": null
+    }
+  },
+  "confidence": "derived",
+  "authority": "shipped-artifact",
+  "environment": null,
+  "limitations": [
+    "Static decompiler observations do not establish runtime behavior; the APK is never executed.",
+    "Method signatures use provider display types; DEX prototypes come from frozen JADX metadata. Display names may be aliases, and overload indices are local to this engine and artifact.",
+    "Class inventories use parsed metadata before code generation, including synthetic members that may be omitted from decompiled source. Source positions remain unknown.",
+    "Incoming reference totals count JADX using nodes. Direct invoke entries within a using method report raw DEX code-unit offsets and method indexes, but coverage is limited to those nodes and directly matched invokes; it does not establish every possible dynamic or reflective call site.",
+    "Manifest summary fields are extracted by the upstream engine; decoded XML is retained for verification. APK signatures, split APKs, native libraries and Android runtime capture are not verified by this provider."
+  ],
+  "relationship_coverage": null,
+  "locations": [],
+  "evidence_links": []
+}

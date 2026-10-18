@@ -1,0 +1,22 @@
+[Unit]
+Description=Paykr %i
+After=network-online.target mysql.service redis-server.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/srv/paykr
+EnvironmentFile=/etc/paykr/%i.env
+ExecStart=/bin/sh -c 'exec $PAYKR_COMMAND'
+Restart=always
+RestartSec=6
+TimeoutStopSec=100
+KillMode=control-group
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,111 @@
+{
+  "evidence_id": "ev_0a70d3dc932510a4b81882da114742501606f49067e2f12c9280dff8fb3eda42",
+  "subject": {
+    "name": "paykr-observer-2.0.0.apk",
+    "digest": {
+      "sha256": "e4f45cd41159ed06a791a5c2fe22e368917391aae776da99e20da11475886bae"
+    },
+    "local_path": "/Applications/XAMPP/xamppfiles/htdocs/Paykr/android-observer/build/paykr-observer-2.0.0.apk",
+    "format": "apk",
+    "architecture": null
+  },
+  "provider": {
+    "id": "rea-analysis-view",
+    "name": "REA analysis view projection",
+    "version": "1"
+  },
+  "analysis_profile": null,
+  "predicate_type": "rea.analysis-view",
+  "operation": "inspect_analysis_view",
+  "parameters": {
+    "parent_evidence_id": "ev_48ad6550b9ae8ec9066d39a842c0bcce277efb4156fd14fb1bb93d847daed607",
+    "view": {
+      "kind": "summary"
+    }
+  },
+  "raw_result": null,
+  "normalized_result": {
+    "kind": "summary",
+    "view": {
+      "kind": "summary"
+    },
+    "parent_evidence_id": "ev_48ad6550b9ae8ec9066d39a842c0bcce277efb4156fd14fb1bb93d847daed607",
+    "parent_operation": "inspect_android_package",
+    "parent_digest": "48ad6550b9ae8ec9066d39a842c0bcce277efb4156fd14fb1bb93d847daed607",
+    "view_digest": "ba6dc1388c79ff4fcf829b583940f1fa69d074e5d1a042026c18af46e1003033",
+    "artifact": {
+      "path": "/Applications/XAMPP/xamppfiles/htdocs/Paykr/android-observer/build/paykr-observer-2.0.0.apk",
+      "sha256": "e4f45cd41159ed06a791a5c2fe22e368917391aae776da99e20da11475886bae"
+    },
+    "coverage": {
+      "status": "complete-within-view",
+      "examined": 1,
+      "total": 1,
+      "next_offset": null,
+      "exhausted": true
+    },
+    "limitations": [
+      "Static decompiler observations do not establish runtime behavior; the APK is never executed.",
+      "Method signatures use provider display types; DEX prototypes come from frozen JADX metadata. Display names may be aliases, and overload indices are local to this engine and artifact.",
+      "Class inventories use parsed metadata before code generation, including synthetic members that may be omitted from decompiled source. Source positions remain unknown.",
+      "Incoming reference totals count JADX using nodes. Direct invoke entries within a using method report raw DEX code-unit offsets and method indexes, but coverage is limited to those nodes and directly matched invokes; it does not establish every possible dynamic or reflective call site.",
+      "Manifest summary fields are extracted by the upstream engine; decoded XML is retained for verification. APK signatures, split APKs, native libraries and Android runtime capture are not verified by this provider."
+    ],
+    "unknowns": [
+      "APK signatures were not verified; package declarations do not establish authenticity or runtime behavior."
+    ],
+    "summary": {
+      "engine": {
+        "name": "jadx-headless-mcp",
+        "version": "0.7.1",
+        "artifact_sha256": "6e5eacf500b64292bfb73c49797c1958f6ee44646e43e868039ae7feb573ff75",
+        "source_revision": "5844800a486d2248fa949b74c9896285f5b54de2",
+        "worker_count": 1,
+        "heap_limit_mib": 8192
+      },
+      "package_name": "com.paykr.observer",
+      "version_name": "2.0.0",
+      "version_code": "2",
+      "min_sdk": "26",
+      "target_sdk": "35",
+      "permissions": [
+        "android.permission.INTERNET",
+        "android.permission.RECEIVE_SMS",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.CAMERA",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_SPECIAL_USE"
+      ],
+      "manifest": {
+        "status": "complete",
+        "reported_total_bytes": null,
+        "text_code_units": 3588,
+        "text_included": false
+      },
+      "class_count": 249,
+      "resource_count": 5,
+      "signature_verification": "not_performed"
+    }
+  },
+  "confidence": "derived",
+  "authority": "shipped-artifact",
+  "environment": null,
+  "limitations": [
+    "Static decompiler observations do not establish runtime behavior; the APK is never executed.",
+    "Method signatures use provider display types; DEX prototypes come from frozen JADX metadata. Display names may be aliases, and overload indices are local to this engine and artifact.",
+    "Class inventories use parsed metadata before code generation, including synthetic members that may be omitted from decompiled source. Source positions remain unknown.",
+    "Incoming reference totals count JADX using nodes. Direct invoke entries within a using method report raw DEX code-unit offsets and method indexes, but coverage is limited to those nodes and directly matched invokes; it does not establish every possible dynamic or reflective call site.",
+    "Manifest summary fields are extracted by the upstream engine; decoded XML is retained for verification. APK signatures, split APKs, native libraries and Android runtime capture are not verified by this provider."
+  ],
+  "relationship_coverage": null,
+  "locations": [
+    {
+      "kind": "artifact-path",
+      "path": "/Applications/XAMPP/xamppfiles/htdocs/Paykr/android-observer/build/paykr-observer-2.0.0.apk"
+    }
+  ],
+  "evidence_links": [
+    "ev_48ad6550b9ae8ec9066d39a842c0bcce277efb4156fd14fb1bb93d847daed607"
+  ]
+}

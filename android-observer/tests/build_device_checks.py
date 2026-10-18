@@ -1,0 +1,11 @@
+import pathlib,runpy,zipfile
+ns=runpy.run_path(str(pathlib.Path(__file__).resolve().parents[1]/'build.py'))
+globals().update(ns)
+classes=BUILD/'device-checks';classes.mkdir(exist_ok=True)
+dex=BUILD/'checks-dex';dex.mkdir(exist_ok=True)
+run(JAVA/'bin/javac','-source','8','-target','8','-classpath',str(ANDROID)+os.pathsep+str(BUILD/'classes'),'-d',classes,ROOT/'tests/DeviceChecks.java')
+run(BT/'d8','--min-api','26','--lib',ANDROID,'--classpath',BUILD/'classes.jar','--output',dex,*classes.rglob('*.class'))
+run(BT/'aapt','package','-f','-M',ROOT/'tests/AndroidManifest.xml','-I',ANDROID,'-F',BUILD/'checks-unsigned.apk')
+with zipfile.ZipFile(BUILD/'checks-unsigned.apk','a') as apk: apk.write(dex/'classes.dex','classes.dex')
+run(BT/'zipalign','-f','4',BUILD/'checks-unsigned.apk',BUILD/'checks-aligned.apk')
+run(BT/'apksigner','sign','--ks',keystore,'--ks-pass','file:'+str(password),'--out',BUILD/'device-checks.apk',BUILD/'checks-aligned.apk')

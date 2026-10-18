@@ -1,0 +1,17 @@
+{
+  "name": "@paykr/whatsapp-sidecar",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22 <27"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test ../tests/whatsapp.test.js ../tests/http.test.js"
+  },
+  "dependencies": {
+    "berryprotocol": "0.1.10",
+    "qrcode": "1.5.4",
+    "pino": "9.14.0"
+  }
+}

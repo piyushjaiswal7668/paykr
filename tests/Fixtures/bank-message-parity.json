@@ -1,0 +1,450 @@
+[
+  {
+    "text": "A/C 1234 credited with Rs. 499.00 on 08-Sep-2026. UPI Ref No 512345678901",
+    "amount": {
+      "amountStr": "499.00",
+      "amountPaise": "49900"
+    },
+    "sms": {
+      "amountPaise": "49900",
+      "amount": "499.00",
+      "bankReferenceNumber": "512345678901",
+      "observedAt": "2026-09-08T10:00:00.000Z",
+      "rawText": "A/C 1234 credited with Rs. 499.00 on 08-Sep-2026. UPI Ref No 512345678901"
+    },
+    "email": {
+      "amountPaise": "49900",
+      "amount": "499.00",
+      "bankReferenceNumber": "512345678901",
+      "observedAt": "2026-09-08T10:00:00.000Z",
+      "rawSnippet": "A/C 1234 credited with Rs. 499.00 on 08-Sep-2026. UPI Ref No 512345678901"
+    }
+  },
+  {
+    "text": "Acct XX9876 credited by Rs.1,250.50 via UPI",
+    "amount": {
+      "amountStr": "1250.50",
+      "amountPaise": "125050"
+    },
+    "sms": {
+      "amountPaise": "125050",
+      "amount": "1250.50",
+      "observedAt": "2026-09-08T10:00:00.000Z",
+      "rawText": "Acct XX9876 credited by Rs.1,250.50 via UPI"
+    },
+    "email": {
+      "amountPaise": "125050",
+      "amount": "1250.50",
+      "observedAt": "2026-09-08T10:00:00.000Z",
+      "rawSnippet": "Acct XX9876 credited by Rs.1,250.50 via UPI"
+    }
+  },
+  {
+    "text": "Rs499 received in a/c 1234",
+    "amount": {
+      "amountStr": "499",
+      "amountPaise": "49900"
+    },
+    "sms": {
+      "amountPaise": "49900",
+      "amount": "499",
+      "observedAt": "2026-09-08T10:00:00.000Z",
+      "rawText": "Rs499 received in a/c 1234"
+    },
+    "email": {
+      "amountPaise": "49900",
+      "amount": "499",
+      "observedAt": "2026-09-08T10:00:00.000Z",
+      "rawSnippet": "Rs499 received in a/c 1234"
+    }
+  },
+  {
+    "text": "INR 500 credited to a/c 4321",
+    "amount": {
+      "amountStr": "500",
+      "amountPaise": "50000"
+    },
+    "sms": {
+      "amountPaise": "50000",
+      "amount": "500",
+      "observedAt": "2026-09-08T10:00:00.000Z",
+      "rawText": "INR 500 credited to a/c 4321"
+    },
+    "email": {
+      "amountPaise": "50000",
+      "amount": "500",
+      "observedAt": "2026-09-08T10:00:00.000Z",
+      "rawSnippet": "INR 500 credited to a/c 4321"
+    }
+  },
+  {
+    "text": "₹1,200.50 credited to your account",
+    "amount": {
+      "amountStr": "1200.50",
+      "amountPaise": "120050"
+    },
+    "sms": {
+      "amountPaise": "120050",
+      "amount": "1200.50",
+      "observedAt": "2026-09-08T10:00:00.000Z",
+      "rawText": "₹1,200.50 credited to your account"
+    },
+    "email": {
+      "amountPaise": "120050",
+      "amount": "1200.50",
+      "observedAt": "2026-09-08T10:00:00.000Z",
+      "rawSnippet": "₹1,200.50 credited to your account"
+    }
+  },
+  {
+    "text": "Mrs Sharma, a/c 1234 credited with Rs 75.00",
+    "amount": {
+      "amountStr": "75.00",
+      "amountPaise": "7500"
+    },
+    "sms": {
+      "amountPaise": "7500",
+      "amount": "75.00",
+      "observedAt": "2026-09-08T10:00:00.000Z",
+      "rawText": "Mrs Sharma, a/c 1234 credited with Rs 75.00"
+    },
+    "email": {
+      "amountPaise": "7500",
+      "amount": "75.00",
+      "observedAt": "2026-09-08T10:00:00.000Z",
+      "rawSnippet": "Mrs Sharma, a/c 1234 credited with Rs 75.00"
+    }
+  },
+  {
+    "text": "20.00 Rs received from user@upi.",
+    "amount": {
+      "amountStr": "20.00",
+      "amountPaise": "2000"
+    },
+    "sms": {
+      "amountPaise": "2000",
+      "amount": "20.00",
+      "senderVpa": "user@upi",
+      "observedAt": "2026-09-08T10:00:00.000Z",
+      "rawText": "20.00 Rs received from user@upi."
+    },
+    "email": {
+      "amountPaise": "2000",
+      "amount": "20.00",
+      "senderVpa": "user@upi",
+      "observedAt": "2026-09-08T10:00:00.000Z",
+      "rawSnippet": "20.00 Rs received from user@upi."
+    }
+  },
+  {
+    "text": "20rs received",
+    "amount": {
+      "amountStr": "20",
+      "amountPaise": "2000"
+    },
+    "sms": {
+      "amountPaise": "2000",
+      "amount": "20",
+      "observedAt": "2026-09-08T10:00:00.000Z",
+      "rawText": "20rs received"
+    },
+    "email": {
+      "amountPaise": "2000",
+      "amount": "20",
+      "observedAt": "2026-09-08T10:00:00.000Z",
+      "rawSnippet": "20rs received"
+    }
+  },
+  {
+    "text": "received 20.00",
+    "amount": {
+      "amountStr": "20.00",
+      "amountPaise": "2000"
+    },
+    "sms": {
+      "amountPaise": "2000",
+      "amount": "20.00",
+      "observedAt": "2026-09-08T10:00:00.000Z",
+      "rawText": "received 20.00"
+    },
+    "email": {
+      "amountPaise": "2000",
+      "amount": "20.00",
+      "observedAt": "2026-09-08T10:00:00.000Z",
+      "rawSnippet": "received 20.00"
+    }
+  },
+  {
+    "text": "20.00 received",
+    "amount": {
+      "amountStr": "20.00",
+      "amountPaise": "2000"
+    },
+    "sms": {
+      "amountPaise": "2000",
+      "amount": "20.00",
+      "observedAt": "2026-09-08T10:00:00.000Z",
+      "rawText": "20.00 received"
+    },
+    "email": {
+      "amountPaise": "2000",
+      "amount": "20.00",
+      "observedAt": "2026-09-08T10:00:00.000Z",
+      "rawSnippet": "20.00 received"
+    }
+  },
+  {
+    "text": "balance 42.50",
+    "amount": {
+      "amountStr": "42.50",
+      "amountPaise": "4250"
+    },
+    "sms": null,
+    "email": null
+  },
+  {
+    "text": "credited 10000000",
+    "amount": null,
+    "sms": null,
+    "email": null
+  },
+  {
+    "text": "credit INR 20 via UPI/CR/REFERENCE99/",
+    "amount": {
+      "amountStr": "20",
+      "amountPaise": "2000"
+    },
+    "sms": {
+      "amountPaise": "2000",
+      "amount": "20",
+      "bankReferenceNumber": "ERENCE99",
+      "observedAt": "2026-09-08T10:00:00.000Z",
+      "rawText": "credit INR 20 via UPI/CR/REFERENCE99/"
+    },
+    "email": {
+      "amountPaise": "2000",
+      "amount": "20",
+      "bankReferenceNumber": "REFERENCE99",
+      "observedAt": "2026-09-08T10:00:00.000Z",
+      "rawSnippet": "credit INR 20 via UPI/CR/REFERENCE99/"
+    }
+  },
+  {
+    "text": "Payment of ₹1,500.50 received from user@upi via PhonePe.",
+    "amount": {
+      "amountStr": "1500.50",
+      "amountPaise": "150050"
+    },
+    "sms": {
+      "amountPaise": "150050",
+      "amount": "1500.50",
+      "senderVpa": "user@upi",
+      "observedAt": "2026-09-08T10:00:00.000Z",
+      "rawText": "Payment of ₹1,500.50 received from user@upi via PhonePe."
+    },
+    "email": {
+      "amountPaise": "150050",
+      "amount": "1500.50",
+      "senderVpa": "user@upi",
+      "observedAt": "2026-09-08T10:00:00.000Z",
+      "rawSnippet": "Payment of ₹1,500.50 received from user@upi via PhonePe."
+    }
+  },
+  {
+    "text": "credited INR 10 ref: ABCDEFGH",
+    "amount": {
+      "amountStr": "10",
+      "amountPaise": "1000"
+    },
+    "sms": {
+      "amountPaise": "1000",
+      "amount": "10",
+      "bankReferenceNumber": "ABCDEFGH",
+      "observedAt": "2026-09-08T10:00:00.000Z",
+      "rawText": "credited INR 10 ref: ABCDEFGH"
+    },
+    "email": {
+      "amountPaise": "1000",
+      "amount": "10",
+      "bankReferenceNumber": "ABCDEFGH",
+      "observedAt": "2026-09-08T10:00:00.000Z",
+      "rawSnippet": "credited INR 10 ref: ABCDEFGH"
+    }
+  },
+  {
+    "text": "credited INR 10 512345678901",
+    "amount": {
+      "amountStr": "10",
+      "amountPaise": "1000"
+    },
+    "sms": {
+      "amountPaise": "1000",
+      "amount": "10",
+      "bankReferenceNumber": "512345678901",
+      "observedAt": "2026-09-08T10:00:00.000Z",
+      "rawText": "credited INR 10 512345678901"
+    },
+    "email": {
+      "amountPaise": "1000",
+      "amount": "10",
+      "bankReferenceNumber": "512345678901",
+      "observedAt": "2026-09-08T10:00:00.000Z",
+      "rawSnippet": "credited INR 10 512345678901"
+    }
+  },
+  {
+    "text": "credited INR 10 UTR: ABC123DEF",
+    "amount": {
+      "amountStr": "10",
+      "amountPaise": "1000"
+    },
+    "sms": {
+      "amountPaise": "1000",
+      "amount": "10",
+      "bankReferenceNumber": "ABC123DEF",
+      "observedAt": "2026-09-08T10:00:00.000Z",
+      "rawText": "credited INR 10 UTR: ABC123DEF"
+    },
+    "email": {
+      "amountPaise": "1000",
+      "amount": "10",
+      "bankReferenceNumber": "ABC123DEF",
+      "observedAt": "2026-09-08T10:00:00.000Z",
+      "rawSnippet": "credited INR 10 UTR: ABC123DEF"
+    }
+  },
+  {
+    "text": "credited INR 10 RRN: REF123456",
+    "amount": {
+      "amountStr": "10",
+      "amountPaise": "1000"
+    },
+    "sms": {
+      "amountPaise": "1000",
+      "amount": "10",
+      "bankReferenceNumber": "REF123456",
+      "observedAt": "2026-09-08T10:00:00.000Z",
+      "rawText": "credited INR 10 RRN: REF123456"
+    },
+    "email": {
+      "amountPaise": "1000",
+      "amount": "10",
+      "bankReferenceNumber": "REF123456",
+      "observedAt": "2026-09-08T10:00:00.000Z",
+      "rawSnippet": "credited INR 10 RRN: REF123456"
+    }
+  },
+  {
+    "text": "credited INR 10",
+    "amount": {
+      "amountStr": "10",
+      "amountPaise": "1000"
+    },
+    "sms": {
+      "amountPaise": "1000",
+      "amount": "10",
+      "observedAt": "2026-09-08T10:00:00.000Z",
+      "rawText": "credited INR 10"
+    },
+    "email": {
+      "amountPaise": "1000",
+      "amount": "10",
+      "observedAt": "2026-09-08T10:00:00.000Z",
+      "rawSnippet": "credited INR 10"
+    }
+  },
+  {
+    "text": "Payment paid Rs 20",
+    "amount": {
+      "amountStr": "20",
+      "amountPaise": "2000"
+    },
+    "sms": null,
+    "email": null
+  },
+  {
+    "text": "Paid Rs 20 but credited Rs 10",
+    "amount": {
+      "amountStr": "20",
+      "amountPaise": "2000"
+    },
+    "sms": {
+      "amountPaise": "2000",
+      "amount": "20",
+      "observedAt": "2026-09-08T10:00:00.000Z",
+      "rawText": "Paid Rs 20 but credited Rs 10"
+    },
+    "email": {
+      "amountPaise": "2000",
+      "amount": "20",
+      "observedAt": "2026-09-08T10:00:00.000Z",
+      "rawSnippet": "Paid Rs 20 but credited Rs 10"
+    }
+  },
+  {
+    "text": "received no amount",
+    "amount": null,
+    "sms": null,
+    "email": null
+  },
+  {
+    "text": "",
+    "amount": null,
+    "sms": null,
+    "email": null
+  },
+  {
+    "text": "Rs 0 credited",
+    "amount": null,
+    "sms": null,
+    "email": null
+  },
+  {
+    "text": "received 0 then 20.00",
+    "amount": {
+      "amountStr": "20.00",
+      "amountPaise": "2000"
+    },
+    "sms": {
+      "amountPaise": "2000",
+      "amount": "20.00",
+      "observedAt": "2026-09-08T10:00:00.000Z",
+      "rawText": "received 0 then 20.00"
+    },
+    "email": {
+      "amountPaise": "2000",
+      "amount": "20.00",
+      "observedAt": "2026-09-08T10:00:00.000Z",
+      "rawSnippet": "received 0 then 20.00"
+    }
+  },
+  {
+    "text": "UPI Rs 10 debited",
+    "amount": {
+      "amountStr": "10",
+      "amountPaise": "1000"
+    },
+    "sms": null,
+    "email": null
+  },
+  {
+    "text": "Deposit 500 inr Ref no: UTR-GMAIL-777",
+    "amount": {
+      "amountStr": "500",
+      "amountPaise": "50000"
+    },
+    "sms": {
+      "amountPaise": "50000",
+      "amount": "500",
+      "observedAt": "2026-09-08T10:00:00.000Z",
+      "rawText": "Deposit 500 inr Ref no: UTR-GMAIL-777"
+    },
+    "email": {
+      "amountPaise": "50000",
+      "amount": "500",
+      "bankReferenceNumber": "UTR-GMAIL-777",
+      "observedAt": "2026-09-08T10:00:00.000Z",
+      "rawSnippet": "Deposit 500 inr Ref no: UTR-GMAIL-777"
+    }
+  }
+]

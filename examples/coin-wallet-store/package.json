@@ -1,0 +1,1 @@
+{"name":"paykr-coin-wallet-example","private":true,"type":"module","engines":{"node":">=22.13"},"scripts":{"start":"node server.mjs"}}

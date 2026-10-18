@@ -1,0 +1,6 @@
+*
+!.gitignore
+
+!releases/
+releases/*
+!releases/paykr-sms-gateway.apk

@@ -1,0 +1,60 @@
+name: Checks
+on: [push, pull_request]
+jobs:
+  phase-checks:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_DATABASE: paykr_test
+          MYSQL_ROOT_PASSWORD: testing-only-password
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -ptesting-only-password"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: --health-cmd="redis-cli ping" --health-interval=5s --health-retries=10
+    env:
+      APP_ENV: testing
+      DB_CONNECTION: mysql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_DATABASE: paykr_test
+      DB_USERNAME: root
+      DB_PASSWORD: testing-only-password
+      CACHE_STORE: redis
+      SESSION_DRIVER: redis
+      QUEUE_CONNECTION: redis
+      REDIS_HOST: 127.0.0.1
+      PAYKR_ADMIN_EMAIL: admin@example.test
+      PAYKR_ADMIN_PASSWORD: ci-only-admin-password
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm ci --prefix services/whatsapp-sidecar --no-audit --no-fund
+      - run: node --test services/tests/*.test.js
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: intl, mbstring, pdo_mysql, pdo_sqlite, pcntl, bcmath
+          coverage: pcov
+      - run: composer install --no-interaction --prefer-dist
+      - run: npm run typecheck && npm run build
+      - run: cp .env.example .env && php artisan key:generate
+      - run: php artisan migrate --seed --force
+      - run: composer check
+      - run: npm test --prefix packages/merchant-sdk
+      - run: node --test tests/Integration/wallet.test.mjs
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+      - run: PAYKR_GO_PATH="$(command -v go)" node tests/Integration/webhook-verifiers.mjs
+      - run: php tests/Support/check-merchant-demo.php
+      - run: php tests/Support/check-checkout.php

@@ -1,0 +1,1 @@
+<div>@foreach(\App\Models\MerchantApiKey::withoutGlobalScope('merchant')->where('merchant_id',$merchant->id)->get() as $key)<p>{{ $key->id }} · {{ $key->prefix }} · {{ $key->type->value }} · {{ $key->mode->value }} · {{ $key->revoked_at ? 'Revoked' : 'Active' }}</p>@endforeach<a href="{{ \App\Filament\Admin\Pages\ApiKeys::getUrl() }}">Manage API key revocation</a></div>

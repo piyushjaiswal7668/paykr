@@ -1,0 +1,5 @@
+{
+  "name": "@paykr/messages-sidecar", "private": true, "type": "module",
+  "engines": {"node": ">=22 <27"},
+  "scripts": {"start": "node src/index.js", "test": "node --test ../tests/messages.test.js ../tests/http.test.js"}
+}

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.paykr.observer" android:versionCode="2" android:versionName="2.0.0">
+    <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="35" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.RECEIVE_SMS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.telephony" android:required="false" />
+    <application android:label="Paykr Observer" android:icon="@android:drawable/stat_notify_chat" android:theme="@android:style/Theme.Material.Light.NoActionBar" android:allowBackup="false" android:fullBackupContent="false" android:usesCleartextTraffic="false" android:debuggable="false">
+        <activity android:name=".MainActivity" android:exported="true" android:windowSoftInputMode="adjustResize">
+            <intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter>
+        </activity>
+        <activity android:name=".QrScannerActivity" android:exported="false" android:screenOrientation="portrait" />
+        <service android:name=".ObserverService" android:exported="false" android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="User-enabled merchant bank SMS observation and signed device health heartbeat while explicitly running" />
+        </service>
+        <service android:name=".PaymentNotificationListenerService" android:label="Paykr selected payment notifications" android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE" android:exported="true">
+            <intent-filter><action android:name="android.service.notification.NotificationListenerService" /></intent-filter>
+        </service>
+        <receiver android:name=".SmsReceiver" android:permission="android.permission.BROADCAST_SMS" android:exported="true">
+            <intent-filter><action android:name="android.provider.Telephony.SMS_RECEIVED" /></intent-filter>
+        </receiver>
+        <receiver android:name=".BootReceiver" android:exported="false">
+            <intent-filter><action android:name="android.intent.action.BOOT_COMPLETED" /></intent-filter>
+        </receiver>
+    </application>
+</manifest>

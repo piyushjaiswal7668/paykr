@@ -1,0 +1,1 @@
+{"name":"@paykr/merchant-sdk","version":"2.0.0","description":"Paykr Laravel merchant client","type":"module","exports":"./src/index.js","files":["src","README.md"],"engines":{"node":">=22"},"scripts":{"test":"node --test test/*.test.mjs"}}

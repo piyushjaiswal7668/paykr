@@ -1,0 +1,44 @@
+{
+  "signals": [
+    {
+      "signals": {},
+      "hash": "aa9eb20a3f83d85c873953abcca05c682ec2c658485566b6e9d9dfa0e795871b"
+    },
+    {
+      "signals": {
+        "userAgent": "  Mozilla/5.0   Test  ",
+        "platform": " MAC ",
+        "language": " EN-IN ",
+        "timezone": " Asia/Kolkata ",
+        "screenWidth": 1920,
+        "screenHeight": 1080,
+        "hardwareConcurrency": "8",
+        "deviceMemory": "8",
+        "webgl": " APPLE GPU ",
+        "canvasSignature": " abc "
+      },
+      "hash": "38acc1859cfb8eac7b1285c9eff39ab85a20c022eda7ab6eb3c0fe710405b02c"
+    },
+    {
+      "signals": {
+        "screenSignature": "100x200x24",
+        "deviceMemory": "0.5",
+        "hardwareConcurrency": -1,
+        "webglRenderer": "GPU",
+        "userAgent": "Unicode हिन्दी / browser"
+      },
+      "hash": "051bda806adb715563407059780723a8290b7144e4882372712eaa4a9484f51a"
+    }
+  ],
+  "payload": "payment-id:2026-10-18T00:00:00Z",
+  "pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEtmKPmWkbBKeoWrwhKv4wQYQEGQlO\nXB5TeVkHvPurm272BgTtIL+UGLJCT2AdaCDyjJhhyR/6XsdNET46M/jL6Q==\n-----END PUBLIC KEY-----\n",
+  "spki": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEtmKPmWkbBKeoWrwhKv4wQYQEGQlOXB5TeVkHvPurm272BgTtIL+UGLJCT2AdaCDyjJhhyR/6XsdNET46M/jL6Q==",
+  "jwk": {
+    "kty": "EC",
+    "x": "tmKPmWkbBKeoWrwhKv4wQYQEGQlOXB5TeVkHvPurm24",
+    "y": "9gYE7SC_lBiyQk9gHWgg8oyYYckf-l7HTRE-OjP4y-k",
+    "crv": "P-256"
+  },
+  "p1363": "jaPeTyIunsRuNUs0t9mHrJhMO4/p6qCsQKA7RtqF3l7M6RuQ+Ajo1YzAZg5QHrGR0R+dq4depvB/f9jaPh8pfg==",
+  "der": "MEYCIQDJIvOSoz9T/1f0VVsfgimeyquvTVX2axsfs0PhCNnddAIhAIV6RHiD/Hlcjt2bXUiP0NJwqaKmAYmTX0JbH0atqHFN"
+}

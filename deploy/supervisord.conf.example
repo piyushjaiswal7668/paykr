@@ -1,0 +1,65 @@
+; Copy only after adapting paths/users. Keep secrets in /srv/paykr/.env (0600), not this file.
+[program:paykr-php-fpm]
+command=/usr/sbin/php-fpm8.3 --nodaemonize
+user=root
+autostart=true
+autorestart=true
+stopsignal=QUIT
+
+[program:paykr-horizon]
+command=/usr/bin/php /srv/paykr/artisan horizon
+directory=/srv/paykr
+user=www-data
+autostart=true
+autorestart=true
+stopwaitsecs=100
+stopasgroup=true
+killasgroup=true
+redirect_stderr=true
+stdout_logfile=/srv/paykr/storage/logs/horizon.log
+
+[program:paykr-clock]
+command=/usr/bin/php /srv/paykr/artisan paykr:clock
+directory=/srv/paykr
+user=www-data
+autostart=true
+autorestart=true
+startsecs=0
+stopwaitsecs=10
+redirect_stderr=true
+stdout_logfile=/srv/paykr/storage/logs/clock.log
+
+[program:paykr-reverb]
+command=/usr/bin/php /srv/paykr/artisan reverb:start --host=127.0.0.1 --port=8080
+directory=/srv/paykr
+user=www-data
+autostart=true
+autorestart=true
+
+[program:paykr-scheduler]
+command=/usr/bin/php /srv/paykr/artisan schedule:work
+directory=/srv/paykr
+user=www-data
+autostart=true
+autorestart=true
+stopasgroup=true
+killasgroup=true
+
+; Phase 6 sidecars: enable after their packages and environment files are deployed.
+[program:paykr-whatsapp-sidecar]
+command=/usr/bin/npm start
+directory=/srv/paykr/services/whatsapp-sidecar
+user=www-data
+autostart=false
+autorestart=true
+stopasgroup=true
+killasgroup=true
+
+[program:paykr-messages-sidecar]
+command=/usr/bin/npm start
+directory=/srv/paykr/services/messages-sidecar
+user=www-data
+autostart=false
+autorestart=true
+stopasgroup=true
+killasgroup=true
