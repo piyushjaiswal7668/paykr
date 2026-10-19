@@ -152,19 +152,28 @@ try {
         expect((await control({ operation: "inspect", id: view.id })).status).toBe("INITIATED");
         await signIn(view, mobile, { existing: label === "desktop" });
         expect((await control({ operation: "inspect", id: view.id })).status).toBe("ACTIVE");
-        await expect(
-            view.frame.getByRole("button", {
-                name: "Payment Done",
-                exact: true,
-            }),
-        ).toHaveCount(0);
-        await control({ operation: "deadline", id: view.id, seconds: 235 });
-        await expect(
-            view.frame.getByRole("button", {
-                name: "Payment Done",
-                exact: true,
-            }),
-        ).toBeVisible({ timeout: 12000 });
+        await expect(view.frame.locator('a[href^="upi:"]')).toHaveCount(0);
+        const expectedUpi = "checkouttest@ybl";
+        await expect(view.frame.getByLabel("UPI ID", { exact: true })).toHaveValue(expectedUpi);
+        const copyButton = view.frame.getByRole("button", { name: "Copy UPI ID", exact: true });
+        await copyButton.evaluate((element) => {
+            Object.defineProperty(element.ownerDocument.defaultView.navigator, "clipboard", {
+                configurable: true,
+                value: { writeText: async (text) => { element.ownerDocument.body.dataset.copiedUpi = text; } },
+            });
+        });
+        await copyButton.click();
+        await expect(view.frame.getByText("UPI ID copied.", { exact: true })).toBeVisible();
+        expect(await copyButton.evaluate((element) => element.ownerDocument.body.dataset.copiedUpi)).toBe(expectedUpi);
+        await copyButton.evaluate((element) => {
+            Object.defineProperty(element.ownerDocument.defaultView.navigator, "clipboard", {
+                configurable: true,
+                value: { writeText: async () => { throw new Error("Clipboard blocked"); } },
+            });
+        });
+        await copyButton.click();
+        await expect(view.frame.getByText("Select the UPI ID above and copy it manually.", { exact: true })).toBeVisible();
+        await expect(view.frame.getByRole("button", { name: "I’ve paid — check payment", exact: true })).toBeVisible();
         await view.page.evaluate(() =>
             window.postMessage(
                 { event: "paykr.payment_success", data: { orderId: "FORGED" } },
@@ -177,11 +186,13 @@ try {
             fullPage: true,
         });
         await view.frame
-            .getByRole("button", { name: "Payment Done", exact: true })
+            .getByRole("button", { name: "I’ve paid — check payment", exact: true })
             .click();
         await expect(
-            view.frame.getByText("Checking UPI transaction in real-time…"),
+            view.frame.getByText("Awaiting payment confirmation from the bank…"),
         ).toBeVisible();
+        expect((await control({ operation: "inspect", id: view.id })).status).toBe("PROCESSING");
+        expect(await view.page.evaluate(() => window.results)).toEqual([]);
         const observed = await sms(`12345678900${seq}`);
         expect(observed.status, JSON.stringify(observed.body)).toBe(200);
         expect(observed.body.status, JSON.stringify(observed.body)).toBe(
