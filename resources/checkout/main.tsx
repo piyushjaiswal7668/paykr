@@ -323,17 +323,12 @@ function App() {
     useEffect(() => {
         if (step === "otp" && otp.length === 6) void submitAuth();
     }, [otp]);
-    const remaining = Math.max(
-        0,
-        Math.ceil(
-            ((state.expiresAt ? Date.parse(state.expiresAt) : now) -
-                (now + offset.current)) /
-                1000,
-        ),
-    );
-    const time = `${Math.floor(remaining / 60)
-        .toString()
-        .padStart(2, "0")}:${(remaining % 60).toString().padStart(2, "0")}`;
+    const remaining = state.expiresAt
+        ? Math.max(0, Math.ceil((Date.parse(state.expiresAt) - (now + offset.current)) / 1000))
+        : 0;
+    const time = !state.expiresAt
+        ? "--:--"
+        : `${Math.floor(remaining / 60).toString().padStart(2, "0")}:${(remaining % 60).toString().padStart(2, "0")}`;
     const price = new Intl.NumberFormat("en-IN", {
         style: "currency",
         currency: state.currency || "INR",
@@ -341,7 +336,9 @@ function App() {
     const methods = state.enabledMethods || b.enabledPaymentMethods || ["UPI"];
     const needsAuth =
         ready &&
-        !state.customer &&
+        // Merchant-supplied customer details are not proof of checkout sign-in.
+        (!state.customer ||
+            (state.status === "INITIATED" && !state.hasActiveSessionConflict)) &&
         !terminal(state.status) &&
         state.status !== "BLOCKED" &&
         !duplicate &&
