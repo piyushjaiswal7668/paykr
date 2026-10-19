@@ -23,7 +23,8 @@ it('kills and restarts the clock mid-payment with singleton ownership and sub-se
     $db = config('database.connections.mysql');
     $environment = ['APP_ENV' => 'testing', 'APP_KEY' => config('app.key'), 'DB_CONNECTION' => 'mysql', 'DB_URL' => '',
         'DB_HOST' => $db['host'], 'DB_PORT' => (string) $db['port'], 'DB_DATABASE' => $db['database'],
-        'DB_USERNAME' => $db['username'], 'DB_PASSWORD' => $db['password'], 'CACHE_STORE' => 'redis', 'BROADCAST_CONNECTION' => 'null'];
+        'DB_USERNAME' => $db['username'], 'DB_PASSWORD' => $db['password'], 'CACHE_STORE' => 'redis',
+        'CACHE_PREFIX' => Cache::store('redis')->getStore()->getPrefix(), 'BROADCAST_CONNECTION' => 'null'];
     $start = fn (bool $once = false) => new Process([PHP_BINARY, base_path('tests/Support/clock-worker.php'), ...($once ? ['--once'] : [])], base_path(), $environment);
     $first = $start();
     $second = null;
