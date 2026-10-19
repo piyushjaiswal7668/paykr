@@ -43,6 +43,7 @@ function App() {
         [duplicate, setDuplicate] = useState(false),
         [sheet, setSheet] = useState(""),
         [qr, setQr] = useState(""),
+        [copyNotice, setCopyNotice] = useState(""),
         [now, setNow] = useState(Date.now()),
         [connection, setConnection] = useState("polling");
     const [token, setToken] = useState(customerToken),
@@ -385,8 +386,10 @@ function App() {
     const paymentDone =
         state.status === "ACTIVE" &&
         state.method === "UPI" &&
-        remaining > 0 &&
-        remaining <= 240;
+        remaining > 0;
+    const upiDetails = new URLSearchParams(state.upiUri?.split("?")[1] || "");
+    const upiId = upiDetails.get("pa") || "";
+    const payeeName = upiDetails.get("pn") || "";
     return (
         <div
             className="checkout"
@@ -691,8 +694,8 @@ function App() {
                                         <div className="spinner" />
                                         <h2>Checking your payment</h2>
                                         <p>
-                                            Checking UPI transaction in
-                                            real-time…
+                                            Awaiting payment confirmation from
+                                            the bank…
                                         </p>
                                         <strong className="timer">
                                             {time}
@@ -780,18 +783,38 @@ function App() {
                                                     ))}
                                                 </div>
                                                 <p>
-                                                    Open any UPI app on your
-                                                    phone to scan and pay
-                                                    directly.
+                                                    Scan from another phone, or copy
+                                                    the UPI ID below to pay
+                                                    manually on this phone.
                                                 </p>
-                                                {state.upiUri && (
-                                                    <a
-                                                        className="upi-link"
-                                                        href={state.upiUri}
-                                                    >
-                                                        Open UPI app
-                                                    </a>
+                                                {upiId && (
+                                                    <div className="manual-upi">
+                                                        <label htmlFor="upi-id">UPI ID</label>
+                                                        <input
+                                                            id="upi-id"
+                                                            readOnly
+                                                            value={upiId}
+                                                            onFocus={(event) => event.target.select()}
+                                                        />
+                                                        <p>Recipient: {payeeName}</p>
+                                                        <button
+                                                            type="button"
+                                                            onClick={async () => {
+                                                                try {
+                                                                    await navigator.clipboard.writeText(upiId);
+                                                                    setCopyNotice("UPI ID copied.");
+                                                                } catch {
+                                                                    setCopyNotice("Select the UPI ID above and copy it manually.");
+                                                                }
+                                                            }}
+                                                        >
+                                                            Copy UPI ID
+                                                        </button>
+                                                        <p role="status">{copyNotice}</p>
+                                                        <p>Pay exactly {price}. Confirm the recipient in your UPI app before paying.</p>
+                                                    </div>
                                                 )}
+
                                             </div>
                                         </div>
                                         {paymentDone && (
@@ -802,7 +825,7 @@ function App() {
                                                     void action("payment-done")
                                                 }
                                             >
-                                                Payment Done
+                                                I’ve paid — check payment
                                             </button>
                                         )}
                                         <ol className="instructions">
@@ -810,12 +833,13 @@ function App() {
                                                 Open any UPI app on your phone.
                                             </li>
                                             <li>
-                                                Scan the QR code and pay exactly{" "}
+                                                Scan the QR or pay the copied UPI ID exactly{" "}
                                                 {price}.
                                             </li>
                                             <li>
-                                                Keep this page open while your
-                                                bank confirms the payment.
+                                                After paying, select “I’ve paid”.
+                                                This does not mark the order as paid;
+                                                wait for bank confirmation and do not pay again.
                                             </li>
                                         </ol>
                                         {b.checkoutNotice && (

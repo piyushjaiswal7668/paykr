@@ -408,8 +408,18 @@ footer small {
 .sheet dd {
     margin: 3px 0;
 }
-.upi-link {
-    display: none;
+.manual-upi input {
+    width: 100%;
+    min-width: 0;
+    padding: 10px;
+    border: 1px solid #d0d5dd;
+    border-radius: 8px;
+    background: white;
+    color: #101828;
+    font: inherit;
+}
+.manual-upi {
+    overflow-wrap: anywhere;
 }
 @media (max-width: 760px) {
     body {
@@ -458,6 +468,7 @@ footer small {
         font-size: 12px;
     }
     .qr-card {
+        flex-direction: column;
         padding: 16px;
         gap: 15px;
     }
@@ -491,10 +502,6 @@ footer small {
     }
     .center h2 {
         font-size: 25px;
-    }
-    .upi-link {
-        display: inline-block;
-        font-size: 13px;
     }
     .sheet-backdrop {
         align-items: flex-end;

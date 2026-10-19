@@ -134,3 +134,16 @@ return the customer.
 
 Embedded SDK checkout reports cancellation to the parent page. Configure the SDK's
 `cancelledUrl` (or `data-cancelled-url`) for a separate cancellation destination.
+
+### UPI payment options
+
+Checkout displays the QR and a copyable receiving UPI ID with the recipient name and
+exact amount. Customers can scan from another device or pay the copied ID manually;
+checkout does not launch UPI apps through payment links. If clipboard access is blocked,
+the read-only UPI field can be selected and copied manually.
+
+“I’ve paid — check payment” moves an active UPI payment into the existing processing
+window; it does not approve payment. Only verified evidence or authorized merchant
+review can confirm receipt. Existing timeout and late-credit review rules still apply.
+Manual payments without an order reference may require merchant review when attribution
+is ambiguous; never fulfil an order based on the customer's button click.
