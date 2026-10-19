@@ -1,0 +1,73 @@
+name: Deploy production
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: paykr-production
+  cancel-in-progress: false
+jobs:
+  checks:
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/checks.yml
+  deploy:
+    needs: checks
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: production
+    env:
+      APP_ENV: testing
+    steps:
+      - name: Check out exact tested commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init .
+          git remote add origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git"
+          git fetch --no-tags --depth=1 origin "$GITHUB_SHA"
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+      - uses: ./.github/actions/setup-runtime
+      - name: Build and validate deployment assets
+        run: |
+          set -euo pipefail
+          composer install --no-interaction --prefer-dist
+          npm ci
+          npm run typecheck
+          npm run build
+          python3 -m unittest discover -s tests/Release -p 'test_*.py'
+          bash -n deploy/oracle-deploy.sh
+          python3 scripts/package-release-assets.py
+          mv "dist/paykr-assets-$GITHUB_SHA.tar.gz" dist/assets.tar.gz
+          git archive --format=tar.gz "$GITHUB_SHA" > dist/source.tar.gz
+          cp deploy/oracle-deploy.sh dist/deploy.sh
+          cd dist
+          sha256sum assets.tar.gz source.tar.gz deploy.sh > SHA256SUMS
+      - name: Upload and activate production release
+        env:
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$DEPLOY_HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]]
+          [[ "$DEPLOY_USER" =~ ^[a-z_][a-z0-9_-]*$ ]]
+          test -n "$DEPLOY_SSH_KEY"
+          test -n "$DEPLOY_KNOWN_HOSTS"
+          ssh_dir=$(mktemp -d)
+          trap 'rm -rf "$ssh_dir"' EXIT
+          chmod 700 "$ssh_dir"
+          printf '%s\n' "$DEPLOY_SSH_KEY" > "$ssh_dir/key"
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$ssh_dir/known_hosts"
+          chmod 600 "$ssh_dir/key" "$ssh_dir/known_hosts"
+          options=(-i "$ssh_dir/key" -o IdentitiesOnly=yes -o BatchMode=yes
+            -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$ssh_dir/known_hosts"
+            -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=4)
+          remote="$DEPLOY_USER@$DEPLOY_HOST"
+          incoming="/srv/paykr/incoming/$GITHUB_SHA-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          ssh "${options[@]}" "$remote" "umask 077; mkdir -p '$incoming'"
+          scp "${options[@]}" dist/{source.tar.gz,assets.tar.gz,deploy.sh,SHA256SUMS} "$remote:$incoming/"
+          ssh "${options[@]}" "$remote" "cd '$incoming' && sha256sum --strict --check SHA256SUMS && bash deploy.sh '$GITHUB_SHA' '$incoming'"

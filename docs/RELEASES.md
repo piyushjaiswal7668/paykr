@@ -1,5 +1,9 @@
 # Tested public asset releases
 
+For one-click server deployment, use **Deploy production** after completing
+[the one-time setup](PRODUCTION-DEPLOYMENT.md). It runs checks, builds and deploys in one
+workflow. **Prepare release** below remains a build-only option for manual installations.
+
 Use GitHub Actions → Prepare release → Run workflow → main. The workflow first runs the
 existing checks on the exact dispatch commit. Only a passing run can build and publish
 `assets-<full-commit-sha>` with the frontend and Filament assets and SHA256SUMS. No external
