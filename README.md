@@ -13,27 +13,62 @@ provider or operational costs. Validate your deployment before accepting custome
 - [Deploy and run workers](deploy/README.md)
 - [Android observer source and build](android-observer/README.md)
 - [Optional WhatsApp / Messages services](services/README.md)
+- [How our repository-owned CI works](docs/CI.md)
 - [Contribute](CONTRIBUTING.md) · [Report a vulnerability privately](SECURITY.md)
 
 ## Local setup
 
 Requires PHP 8.3+ (intl, mbstring, PDO MySQL/SQLite, bcmath, pcntl), Composer,
 Node 22.13+, MySQL 8 and Redis 7. SQLite is used for isolated tests; the application uses MySQL.
+Use Linux or macOS; on Windows use WSL2 because Horizon and the clock require PCNTL.
+Install and start MySQL and Redis before continuing. This is a self-hosted application,
+not a one-click hosted service: real payments also need a receiving account, HTTPS,
+observer pairing and customer OTP delivery.
+
+Check your installed tools:
+
+```sh
+php --version
+composer --version
+node --version
+mysql --version
+redis-cli ping # should return PONG
+```
 
 ```sh
 git clone https://github.com/piyushjaiswal7668/paykr.git
 cd paykr
 composer install
-cp .env.example .env # first setup only; never overwrite an existing environment
+test -f .env || cp .env.example .env # preserves an existing environment
 php artisan key:generate
 npm ci
 npm run build
 ```
 
-Create a dedicated MySQL database and user. Set DB credentials, APP_URL and Redis settings
-in `.env`. Set PAYKR_ADMIN_EMAIL and a unique PAYKR_ADMIN_PASSWORD (12+ characters),
-PAYKR_INTERNAL_TOKEN (32+ characters), REVERB_APP_KEY and REVERB_APP_SECRET.
-Generate separate random values, for example with `openssl rand -hex 32`.
+Create a dedicated database using a MySQL administrator session. Replace the password
+placeholder before running this SQL; it must match DB_PASSWORD in your `.env`:
+
+```sql
+CREATE DATABASE paykr CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER 'paykr'@'127.0.0.1' IDENTIFIED BY 'REPLACE_WITH_A_UNIQUE_PASSWORD';
+GRANT ALL PRIVILEGES ON paykr.* TO 'paykr'@'127.0.0.1';
+```
+
+Edit `.env` before running migrations:
+
+| Setting | Local value / action |
+| --- | --- |
+| `APP_URL` | `http://localhost:8000` |
+| `DB_HOST`, `DB_PORT` | `127.0.0.1`, `3306` |
+| `DB_DATABASE`, `DB_USERNAME` | `paykr`, `paykr` |
+| `DB_PASSWORD` | Your database user's password |
+| `REDIS_HOST`, `REDIS_PORT` | `127.0.0.1`, `6379` |
+| `PAYKR_ADMIN_EMAIL` | Your administrator login email |
+| `PAYKR_ADMIN_PASSWORD` | A unique password of at least 12 characters |
+| `PAYKR_INTERNAL_TOKEN` | A separate random secret of at least 32 characters |
+| `REVERB_APP_KEY`, `REVERB_APP_SECRET` | Generate a separate random value for each |
+
+Run `openssl rand -hex 32` separately for each random value. Keep the generated APP_KEY.
 Never commit `.env`, signing keys, customer messages or database dumps.
 
 ```sh
@@ -61,6 +96,27 @@ Horizon processes payments, webhooks and observer jobs. The clock enforces payme
 the scheduler recovers missed jobs. Configure your receiving account and an authorized observer
 before testing a payment. Android pairing requires a trusted HTTPS URL reachable by the phone.
 Customer OTP delivery requires the configured messaging service; see the service guide above.
+
+### Confirm the installation
+
+- Open `/admin`, sign in and complete authenticator enrollment.
+- Open `/merchant` and confirm the demo store dashboard loads.
+- Open `/health` after starting the workers; `clock.healthy` should be true.
+  HTTP success alone only shows the application is alive.
+- Follow the integration guide below for synthetic checkout testing before real transfers.
+
+### Common setup problems
+
+| Symptom | Check |
+| --- | --- |
+| Database connection refused / access denied | MySQL is running; database/user exist; `.env` host and password match the SQL setup. |
+| Redis connection refused | Start Redis and confirm `redis-cli ping` returns `PONG`. |
+| Missing Vite manifest or unstyled pages | Run `composer install`, `npm ci`, then `npm run build`. |
+| Missing PHP extension | Install/enable the named extension for the CLI PHP shown by `php --version`. |
+| Payment stays pending / webhook not delivered | Keep Horizon, the clock and scheduler running; inspect observer status and held-credit review. |
+| Phone cannot pair | Use a trusted HTTPS URL reachable from the phone; the phone's localhost is not your computer. |
+| Customer OTP not received | Configure and pair the WhatsApp service; it is disabled in the example environment. |
+| Changed `.env` but old values remain | Run `php artisan optimize:clear`, then restart workers and the server. |
 
 ## Add payments to a website
 
