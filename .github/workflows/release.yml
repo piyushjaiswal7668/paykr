@@ -1,0 +1,56 @@
+name: Prepare release
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: paykr-release
+  cancel-in-progress: false
+jobs:
+  checks:
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/checks.yml
+  publish:
+    needs: checks
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      APP_ENV: testing
+    permissions:
+      contents: write
+    steps:
+      - name: Check out the tested commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init .
+          git remote add origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git"
+          git fetch --no-tags --depth=1 origin "$GITHUB_SHA"
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+      - uses: ./.github/actions/setup-runtime
+      - name: Build public assets from locked dependencies
+        run: |
+          composer install --no-interaction --prefer-dist
+          npm ci
+          npm run typecheck
+          npm run build
+          python3 -m unittest discover -s tests/Release -p 'test_*.py'
+          python3 scripts/package-release-assets.py
+      - name: Publish immutable-by-policy commit assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="assets-$GITHUB_SHA"
+          cat > dist/NOTES.md <<EOF
+          Public build assets for commit $GITHUB_SHA.
+          Required checks passed in workflow run $GITHUB_RUN_ID.
+          Verify SHA256SUMS and release-assets.json before installing alongside this exact source commit.
+          This release contains no production secrets, database, vendor dependencies or provider sessions.
+          EOF
+          gh release create "$tag" dist/paykr-assets-*.tar.gz dist/SHA256SUMS \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "Paykr assets $GITHUB_SHA" --notes-file dist/NOTES.md --latest=false

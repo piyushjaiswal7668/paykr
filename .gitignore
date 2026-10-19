@@ -43,3 +43,6 @@ Thumbs.db
 *.pfx
 /services/**/.env.*
 !/services/**/.env.example
+
+/dist/
+__pycache__/
