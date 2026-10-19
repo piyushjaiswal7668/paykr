@@ -255,6 +255,17 @@ try {
             .getByRole("button", { name: "Cancel payment", exact: true })
             .click();
     }
+    const returnContext = await browser.newContext();
+    const returnView = await open(returnContext, "cancel-return", 13.37);
+    const returnUrl = `${shop}/?order=cancelled-return`;
+    await control({ operation: "return-url", id: returnView.id, url: returnUrl });
+    await returnView.page.goto(`${base}/checkout/${returnView.id}`);
+    await cancel({ frame: returnView.page });
+    await expect(returnView.page.getByRole("link", { name: "Return to merchant" })).toHaveAttribute("href", returnUrl);
+    await expect(returnView.page).toHaveURL(returnUrl);
+    expect((await control({ operation: "inspect", id: returnView.id })).status).toBe("CANCELLED");
+    await returnContext.close();
+    console.log("Standalone cancellation: PASS — returns to the merchant with the payment cancelled");
     const q1c = await browser.newContext(),
         q1 = await open(q1c, "queue-first");
     await signIn(q1, "9000000005");
@@ -337,6 +348,8 @@ try {
     await expect(newPage).not.toHaveURL(new RegExp(old.id));
     await expect(newPage.getByAltText("UPI payment QR code")).toBeVisible();
     await cancel({ frame: newPage });
+    await expect(newPage.getByText("No return link was provided for this order.", { exact: false })).toBeVisible();
+    await expect(newPage.getByRole("button", { name: "Try again", exact: true })).toHaveCount(0);
     await oldContext.close();
     await newContext.close();
     console.log(
