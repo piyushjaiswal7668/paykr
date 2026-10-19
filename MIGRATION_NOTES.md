@@ -790,3 +790,20 @@ Final local rehearsal: the full desktop/mobile checkout matrix passed again, inc
 COD/counter, queue promotion, cancellation during grace, late-credit review, duplicate-device
 restart and fraud blocking. The scoped Phase 11 local work is complete; hosted launch and
 registry publication remain separate future release actions.
+
+## Separate training sections and integration guide
+
+Organized merchant (27), administrator (25), and integration (17) lessons as 69 separate
+named MP4s. Added a seven-minute English narrated/captioned integration guide covering
+browser SDK, backend order creation, webhook validation, atomic fulfilment, testing and
+in-dashboard training deployment. Full guides, chapter clips, transcripts and a combined
+sharing ZIP remain in private storage. The curated deployable media ZIP excludes source
+captures and credentials.
+
+Added merchant Help → Training and admin Training pages. Videos are served from private
+storage using expiring signed URLs plus session/role checks; merchants cannot fetch admin
+videos. Binary responses support byte ranges. Full regression: 293 passed, six MySQL-only
+skips, 3,028 assertions; 93.2% overall and 95.20% domain coverage. PHPStan and Pint pass.
+Isolated browser verification covers actual video playback and merchant/admin separation.
+See docs/TRAINING.md for installation and updates. No production data or provider pairing
+was changed, and no training content was sent to external recipients.
