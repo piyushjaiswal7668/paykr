@@ -33,3 +33,13 @@ Thumbs.db
 /services/**/data/
 /examples/coin-wallet-store/*.sqlite*
 /paykr-merchant-sdk-*.tgz
+
+# Private deployment environments and signing material
+.env.*
+!.env.example
+*.jks
+*.keystore
+*.p12
+*.pfx
+/services/**/.env.*
+!/services/**/.env.example
