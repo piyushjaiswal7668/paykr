@@ -163,3 +163,11 @@ Project source is available under the [MIT license](LICENSE). Third-party depend
 brand assets retain their own licenses and rights; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 Historical migration records are in [laravel-migration](laravel-migration/00-README.md) and
 [MIGRATION_NOTES.md](MIGRATION_NOTES.md); dated phase notes are not current setup instructions.
+
+### One-click Oracle deployment
+
+After the [one-time production setup](docs/PRODUCTION-DEPLOYMENT.md), run
+**GitHub Actions → Deploy production → main**. It tests and builds the selected commit,
+backs up the existing installation, applies pending migrations, activates the release,
+and checks HTTP and payment-clock health. Deployments are manual; pushes do not update
+production. The existing **Prepare release** workflow only publishes static assets.
