@@ -200,3 +200,13 @@ These local checks are not a production FPM/network capacity measurement.
 See [security review](../docs/SECURITY-REVIEW.md) and the §16/§19.2 evidence tables in
 [PARITY.md](../docs/PARITY.md). Repeat Composer and all three npm production dependency
 audits at deployment; this phase's zero-advisory result is time-dependent.
+
+### Dashboard training videos
+
+Deploy the reviewed `storage/app/private/training/` directory with `catalog.json` and the
+merchant/admin/integration subfolders. It is intentionally outside public storage. The
+merchant Help → Training page and admin Training page stream authorized, signed URLs.
+The optional `Paykr-Training-Library.zip` contains only the curated deployable library.
+Do not deploy source captures or private credentials as public assets. See docs/TRAINING.md
+for access rules, updates and playback checks. Keep PHP-FPM available for protected media;
+if traffic grows, preserve authorization when introducing an internal nginx file handoff.
