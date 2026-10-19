@@ -55,11 +55,19 @@ const browser = await chromium.launch({
     driver = new AndroidObserverDriver({ apiBaseUrl: base });
 await mkdir("storage/app/private/evidence/phase9", { recursive: true });
 let seq = 0;
-async function open(context, label, amount = 10) {
+async function open(context, label, amount = 10, customer = null) {
     const page = await context.newPage();
     page.setDefaultTimeout(15000);
     const errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
+    if (customer) {
+        await page.route(`${base}/api/v1/payments`, async (route) => {
+            if (route.request().method() !== "POST") return route.continue();
+            await route.continue({
+                postData: JSON.stringify({ ...route.request().postDataJSON(), customer }),
+            });
+        });
+    }
     await page.goto(`${shop}/?order=${label}-${++seq}&amount=${amount}`);
     const created = page.waitForResponse(
         (r) =>
@@ -137,8 +145,13 @@ try {
         ["mobile", { width: 390, height: 844 }, "9000000002"],
     ]) {
         const context = await browser.newContext({ viewport }),
-            view = await open(context, label);
-        await signIn(view, mobile);
+            view = await open(context, label, 10, label === "desktop" ? {
+                name: "Merchant supplied customer", mobileNumber: mobile,
+                email: `${mobile}@example.test`,
+            } : null);
+        expect((await control({ operation: "inspect", id: view.id })).status).toBe("INITIATED");
+        await signIn(view, mobile, { existing: label === "desktop" });
+        expect((await control({ operation: "inspect", id: view.id })).status).toBe("ACTIVE");
         await expect(
             view.frame.getByRole("button", {
                 name: "Payment Done",
