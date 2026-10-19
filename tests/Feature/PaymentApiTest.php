@@ -1,18 +1,27 @@
 <?php
 
 declare(strict_types=1);
+use App\Domain\Merchants\Data\ApiIdentity;
 use App\Domain\Merchants\Enums\ApiKeyMode;
 use App\Domain\Merchants\Enums\ApiKeyType;
+use App\Domain\Merchants\Services\ApiKeyAuthenticator;
 use App\Domain\Merchants\Services\ApiKeyService;
+use App\Domain\Payments\Data\PaymentApiData;
+use App\Domain\Payments\Enums\PaymentMethod;
 use App\Domain\Payments\Enums\PaymentStatus;
+use App\Domain\Payments\Services\PaymentApiService;
+use App\Domain\Payments\Services\PaymentMethodService;
 use App\Domain\Payments\Services\PaymentTransitionService;
 use App\Domain\Shared\Enums\ActorType;
 use App\Domain\Shared\Errors\ValidationException;
 use App\Domain\Shared\Services\TenantContext;
 use App\Domain\Shared\ValueObjects\Actor;
 use App\Models\Customer;
+use App\Models\Device;
 use App\Models\Merchant;
 use App\Models\MerchantApiKey;
+use App\Models\MerchantCustomerBlock;
+use App\Models\MerchantPaymentSettings;
 use App\Models\PaymentReceivingAccount;
 use App\Models\PaymentSession;
 use App\Models\User;
@@ -126,4 +135,81 @@ it('accepts 200 creations across twenty merchants within a minute without a shar
         expect(app(TenantContext::class)->run($merchant->id, fn () => PaymentSession::count()))->toBe(10);
     }
     expect(microtime(true) - $started)->toBeLessThan(60.0);
+});
+
+it('creates enabled non-UPI payments and refuses disabled methods', function (string $method, string $mode, string $flag) {
+    $this->withHeader('X-Api-Key', $this->sk);
+    $body = ['orderId' => 'METHOD-ORDER', 'amount' => '10', 'method' => $method];
+    $this->postJson('/api/v1/payments', $body)->assertJsonPath('code', 'PAYMENT_METHOD_DISABLED');
+    app(TenantContext::class)->run($this->merchant->id, fn () => MerchantPaymentSettings::factory()->create(['selling_mode' => $mode, $flag => true]));
+    $this->postJson('/api/v1/payments', $body)->assertCreated()->assertJsonPath('status', 'ACTIVE')->assertJsonPath('method', $method);
+})->with([['COD', 'ONLINE', 'cod_enabled'], ['CASH_COUNTER', 'OFFLINE', 'cash_enabled'], ['CARD_COUNTER', 'OFFLINE', 'card_enabled']]);
+
+it('returns a successful order without creating another charge', function () {
+    $payment = app(TenantContext::class)->run($this->merchant->id, fn () => PaymentSession::factory()->create(['status' => 'SUCCESS', 'order_id' => 'PAID-ORDER']));
+    $this->withHeader('X-Api-Key', $this->sk)->postJson('/api/v1/payments', ['orderId' => 'PAID-ORDER', 'amount' => '10'])->assertOk()->assertJsonPath('paymentId', $payment->id);
+    expect(PaymentSession::withoutGlobalScopes()->count())->toBe(1);
+});
+
+it('refuses new UPI payments when no receiving account is active', function () {
+    app(TenantContext::class)->run($this->merchant->id, fn () => PaymentReceivingAccount::query()->update(['is_active' => false]));
+    $this->withHeader('X-Api-Key', $this->sk)->postJson('/api/v1/payments', ['orderId' => 'NO-ACCOUNT', 'amount' => '10'])->assertJsonPath('code', 'NO_ACTIVE_RECEIVING_ACCOUNT');
+    expect(PaymentSession::withoutGlobalScopes()->count())->toBe(0);
+});
+
+it('refuses suspended merchants even when legacy merchant headers are enabled', function () {
+    config(['paykr.allow_legacy_merchant_header' => true]);
+    $this->merchant->update(['status' => 'SUSPENDED']);
+    expect(fn () => app(ApiKeyAuthenticator::class)->authenticate(null, null, false, $this->merchant->id))->toThrow(ValidationException::class, 'MERCHANT_SUSPENDED');
+});
+
+it('returns COD receipt details through both payment and order lookups', function (string $operation) {
+    app(TenantContext::class)->run($this->merchant->id, function () use ($operation) {
+        $customer = Customer::factory()->create();
+        $payment = PaymentSession::factory()->create(['method' => 'COD', 'status' => 'SUCCESS', 'completed_at' => now(), 'customer_id' => $customer->id]);
+        $result = app(PaymentApiService::class)->execute(new PaymentApiData(new ApiIdentity($this->merchant->id, true, false), $operation, id: $payment->id, orderId: $payment->order_id));
+        expect($result->data['isCod'])->toBeTrue();
+        expect($result->data['placedAt'])->not->toBeNull();
+        expect($result->data['customer']['id'])->toBe($customer->id);
+    });
+})->with(['cod', 'order-cod']);
+
+it('blocks merchant-blocked customers and rejects another device with a live customer payment', function () {
+    $customer = Customer::factory()->create();
+    app(TenantContext::class)->run($this->merchant->id, function () use ($customer) {
+        MerchantCustomerBlock::create(['customer_id' => $customer->id, 'blocked_by' => User::factory()->create()->id, 'reason' => 'Merchant review']);
+    });
+    $body = ['orderId' => 'CUSTOMER-ORDER', 'amount' => '10', 'customerId' => $customer->id];
+    $this->withHeader('X-Api-Key', $this->sk)->postJson('/api/v1/payments', $body)->assertJsonPath('code', 'CUSTOMER_BLOCKED_BY_MERCHANT');
+    app(TenantContext::class)->run($this->merchant->id, function () use ($customer) {
+        MerchantCustomerBlock::query()->delete();
+        PaymentSession::factory()->active()->create(['customer_id' => $customer->id, 'device_id' => Device::factory()]);
+    });
+    $this->postJson('/api/v1/payments', $body)->assertStatus(409);
+});
+
+it('rolls back a switch to UPI when there is no active receiving account', function () {
+    app(TenantContext::class)->run($this->merchant->id, function () {
+        PaymentReceivingAccount::query()->update(['is_active' => false]);
+        $payment = PaymentSession::factory()->active()->create(['method' => 'COD']);
+        expect(fn () => app(PaymentMethodService::class)->select($payment->id, PaymentMethod::UPI, new Actor(ActorType::SYSTEM)))->toThrow(ValidationException::class, 'NO_ACTIVE_RECEIVING_ACCOUNT');
+        expect($payment->fresh()->method->value)->toBe('COD');
+    });
+});
+
+it('does not disclose a new token when another request registered the device first', function () {
+    $dispatcher = PaymentReceivingAccount::getEventDispatcher();
+    PaymentReceivingAccount::setEventDispatcher(clone $dispatcher);
+    $reads = 0;
+    PaymentReceivingAccount::retrieved(function () use (&$reads) {
+        if (++$reads === 2) {
+            Device::factory()->create(['legacy_id' => 'concurrent-browser']);
+        }
+    });
+    try {
+        $this->withHeader('X-Api-Key', $this->sk)->postJson('/api/v1/payments', ['orderId' => 'CONCURRENT-DEVICE', 'amount' => '10', 'deviceId' => 'concurrent-browser'])->assertCreated()->assertJsonMissingPath('deviceToken');
+        expect(Device::where('legacy_id', 'concurrent-browser')->count())->toBe(1);
+    } finally {
+        PaymentReceivingAccount::setEventDispatcher($dispatcher);
+    }
 });

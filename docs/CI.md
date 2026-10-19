@@ -26,3 +26,16 @@ Do not introduce pull_request_target execution of untrusted PR code.
 When changing the setup action, validate it with a real pull-request CI run on Ubuntu 24.04.
 Local macOS cannot validate Ubuntu's PHP module configuration. Review runner-image changes
 if the runtime checks fail; do not silently remove coverage or skip a required language.
+
+## PHP coverage
+
+`composer test` requires 100% PHP line coverage across `app/`, with a separate
+100% domain coverage check. Keep failure, authorization, concurrency-guard, and
+recovery tests alongside successful workflows. Do not exclude application files
+or add coverage-ignore annotations to satisfy the threshold.
+
+The local SQLite coverage run passes 392 tests with six environment-dependent
+skips. CI runs against MySQL and Redis to exercise database concurrency and the
+clock subprocess as well. Line coverage measures executed PHP lines; it does not
+claim every possible input or branch is tested, and it does not measure the
+frontend, Android app, or Node sidecars. Their existing checks remain separate.

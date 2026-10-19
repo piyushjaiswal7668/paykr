@@ -1,7 +1,10 @@
 <?php
 
 declare(strict_types=1);
+use App\Domain\Observers\Data\ObserverRequest;
 use App\Domain\Observers\Services\AndroidObserver;
+use App\Domain\Observers\Services\InternalObserver;
+use App\Domain\Observers\Services\ObserverIntake;
 use App\Domain\Shared\Errors\ErrorCode;
 use App\Domain\Shared\Errors\ValidationException;
 use App\Domain\Shared\Services\TenantContext;
@@ -156,4 +159,11 @@ it('rejects old amount-only notification shortcuts and preserves fraud handling 
 it('uses catalog HTTP statuses for missing public APK artifacts', function () {
     $response = app(ApiExceptionRenderer::class)(new ValidationException(ErrorCode::NOT_FOUND), Request::create('/paykr-sms-gateway.apk'));
     expect($response->getStatusCode())->toBe(404);
+});
+
+it('refuses internal observations for unknown merchants or unrelated payments', function () {
+    expect(fn () => app(InternalObserver::class)->execute(new ObserverRequest('active-window')))->toThrow(ValidationException::class, 'MERCHANT_NOT_FOUND');
+    app(TenantContext::class)->run($this->merchant->id, function () {
+        expect(fn () => app(ObserverIntake::class)->process(new ObserverRequest('intake', text: 'INR 200 credited UTR 123456789012', accountId: $this->account->id, paymentId: 'missing-payment'), 'SMS'))->toThrow(ValidationException::class, 'PAYMENT_NOT_FOUND');
+    });
 });

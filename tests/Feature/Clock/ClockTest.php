@@ -12,6 +12,7 @@ use App\Domain\Payments\Services\PaymentTransitionService;
 use App\Domain\Payments\Services\SlotQueueService;
 use App\Domain\Platform\Services\ClockStatus;
 use App\Domain\Platform\Services\PaymentClock;
+use App\Domain\Platform\Services\SystemOverview;
 use App\Domain\Shared\Enums\ActorType;
 use App\Domain\Shared\Errors\ValidationException;
 use App\Domain\Shared\Services\TenantContext;
@@ -21,10 +22,12 @@ use App\Domain\Verification\Jobs\ReattributePendingObservations;
 use App\Domain\Verification\Services\AttributionEngine;
 use App\Filament\Admin\Pages\System;
 use App\Models\Merchant;
+use App\Models\MerchantGmailConnection;
 use App\Models\MerchantPaymentSettings;
 use App\Models\PaymentObservation;
 use App\Models\PaymentReceivingAccount;
 use App\Models\PaymentSession;
+use Illuminate\Contracts\Bus\Dispatcher;
 use Illuminate\Foundation\Testing\RefreshDatabaseState;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Cache;
@@ -175,4 +178,45 @@ it('requeues future grace finalization on startup without confirming it early', 
         Bus::assertDispatched(FinalizeLevel1Payment::class, fn ($job) => $job->paymentId === $payment->id && $job->delay->equalTo(now()->addSeconds(5)));
         expect($payment->refresh()->status)->toBe(PaymentStatus::ACTIVE);
     });
+});
+
+it('keeps clock recovery running when dispatch fails and releases observer throttles', function () {
+    clockMerchant(function ($merchant, $account, $payment) {
+        $payment->update(['verification_grace_expires_at' => now()->addMinute()]);
+        MerchantGmailConnection::factory()->create(['refresh_token' => 'refresh']);
+        $idle = Merchant::factory()->create();
+        app(TenantContext::class)->run($idle->id, fn () => MerchantGmailConnection::factory()->create(['refresh_token' => 'idle-refresh']));
+        Bus::swap(Mockery::mock(Dispatcher::class));
+        Bus::shouldReceive('dispatch')->andThrow(new RuntimeException('queue unavailable'));
+        $counts = app(PaymentClock::class)->tick(true);
+        expect($counts['expiredCount'])->toBe(0);
+        expect($payment->fresh()->status)->toBe(PaymentStatus::ACTIVE);
+        expect($payment->fresh()->verification_grace_expires_at)->not->toBeNull();
+        expect(Cache::has('paykr:observers:dispatch:'.$merchant->id.':active'))->toBeFalse();
+        expect(Cache::has('paykr:observers:dispatch:'.$idle->id.':idle'))->toBeFalse();
+    });
+});
+
+it('clears elapsed grace deadlines even when the attributed observation has disappeared', function () {
+    clockMerchant(function ($merchant, $account, $payment) {
+        $payment->update(['verification_grace_expires_at' => now()->subSecond(), 'verification_level' => 1]);
+        $renewals = 0;
+        app(PaymentClock::class)->tick(false, function () use (&$renewals) {
+            $renewals++;
+        });
+        expect($payment->fresh()->verification_grace_expires_at)->toBeNull();
+        expect($renewals)->toBeGreaterThan(0);
+    });
+});
+
+it('reports a listening realtime server and closes the health probe connection', function () {
+    $server = stream_socket_server('tcp://127.0.0.1:0', $error, $message);
+    expect($server)->not->toBeFalse();
+    $address = stream_socket_get_name($server, false);
+    config(['reverb.servers.reverb.host' => '127.0.0.1', 'reverb.servers.reverb.port' => (int) substr(strrchr($address, ':'), 1)]);
+    try {
+        expect(app(SystemOverview::class)->read()['Reverb'])->toBe('Listening');
+    } finally {
+        fclose($server);
+    }
 });

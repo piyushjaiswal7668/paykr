@@ -103,3 +103,17 @@ it('does not allow an ordinary transition or unapproved reviewed transition to r
         expect($this->payment->refresh()->status)->toBe(PaymentStatus::CANCELLED);
     });
 });
+
+it('refuses invalid review notes and previously resolved or inactive payments', function (string $scenario, string $code) {
+    app(TenantContext::class)->run($this->merchant->id, function () use ($scenario) {
+        if ($scenario === 'resolved') {
+            $this->credit->update(['raw_payload' => ['reviewResolution' => ['paymentId' => 'another-payment', 'outcome' => 'APPROVED_PAID']]]);
+        } elseif ($scenario === 'attributed') {
+            $this->credit->update(['attribution_status' => 'ATTRIBUTED']);
+        } elseif ($scenario === 'inactive') {
+            $this->payment->refresh()->update(['status' => 'INITIATED']);
+        }
+    });
+    expect(fn () => app(ApproveHeldCredit::class)->handle($this->merchant->id, $this->user->id, $this->credit->id, $this->payment->id, '123456789012', $scenario === 'note' ? 'short' : 'Checked transaction independently.'))->toThrow(ValidationException::class, $code);
+    expect(WebhookDelivery::withoutGlobalScopes()->count())->toBe(0);
+})->with([['note', 'VALIDATION_FAILED'], ['resolved', 'INVALID_STATE_TRANSITION'], ['attributed', 'INVALID_STATE_TRANSITION'], ['inactive', 'SESSION_NOT_ACTIVE']]);

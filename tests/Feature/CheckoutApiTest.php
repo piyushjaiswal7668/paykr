@@ -1,12 +1,16 @@
 <?php
 
 declare(strict_types=1);
+use App\Domain\Checkout\Data\CheckoutData;
+use App\Domain\Checkout\Services\CheckoutService;
+use App\Domain\Shared\Errors\ValidationException;
 use App\Domain\Shared\Services\TenantContext;
 use App\Models\Customer;
 use App\Models\CustomerSession;
 use App\Models\Device;
 use App\Models\Merchant;
 use App\Models\MerchantBranding;
+use App\Models\MerchantCustomerBlock;
 use App\Models\MerchantPaymentSettings;
 use App\Models\MerchantTestMode;
 use App\Models\PaymentReceivingAccount;
@@ -152,4 +156,73 @@ it('does not replace a customer on an already active payment', function () {
     $this->withHeaders(['X-Device-Id' => $this->device->id, 'X-Device-Token' => $this->deviceToken])
         ->withToken($this->customerToken)->postJson($this->path.'/bind-customer')->assertStatus(409)->assertJsonPath('code', 'SESSION_ALREADY_BOUND');
     $this->assertDatabaseHas('payment_sessions', ['id' => $this->payment->id, 'customer_id' => $other->id]);
+});
+
+it('rejects unsafe checkout mutations at the service boundary', function (string $operation, string $status, bool $owned, bool $blocked, string $code) {
+    app(TenantContext::class)->run($this->merchant->id, function () use ($status, $owned, $blocked) {
+        $this->payment->update(['status' => $status, 'customer_id' => $owned ? $this->customer->id : null]);
+        if ($blocked) {
+            MerchantCustomerBlock::create(['customer_id' => $this->customer->id, 'reason' => 'Merchant decision', 'blocked_by' => User::factory()->create()->id]);
+        }
+    });
+    try {
+        app(CheckoutService::class)->execute(new CheckoutData($operation, $this->payment->id, $this->device->id, $this->deviceToken, $this->customerToken));
+        $this->fail('Mutation should have been rejected');
+    } catch (ValidationException $exception) {
+        expect($exception->errorCode->value)->toBe($code);
+    }
+})->with([
+    ['trigger-hook', 'FAILED', true, false, 'PAYMENT_CLOSED'],
+    ['bind-customer', 'FAILED', true, false, 'PAYMENT_CLOSED'],
+    ['bind-customer', 'INITIATED', false, true, 'CUSTOMER_BLOCKED_BY_MERCHANT'],
+    ['cancel', 'INITIATED', true, true, 'CUSTOMER_BLOCKED_BY_MERCHANT'],
+    ['retry-new-payment', 'INITIATED', false, false, 'FORBIDDEN'],
+    ['retry-new-payment', 'FAILED', true, false, 'PAYMENT_CLOSED'],
+    ['end-and-restart-payment', 'INITIATED', false, false, 'FORBIDDEN'],
+]);
+
+it('returns a generated QR and a COD receipt through the service', function () {
+    $service = app(CheckoutService::class);
+    app(TenantContext::class)->run($this->merchant->id, fn () => $this->payment->update(['status' => 'ACTIVE', 'expires_at' => now()->addMinutes(5)]));
+    $result = $service->execute(new CheckoutData('qr', $this->payment->id, $this->device->id, $this->deviceToken));
+    expect($result->svg)->toContain('<svg');
+    app(TenantContext::class)->run($this->merchant->id, fn () => $this->payment->update(['status' => 'SUCCESS', 'method' => 'COD', 'completed_at' => now()]));
+    $result = $service->execute(new CheckoutData('cod', $this->payment->id));
+    expect($result->data['isCod'])->toBeTrue()->and($result->data['placedAt'])->not->toBeNull();
+});
+
+it('activates authenticated counter checkout and lists enabled card payments', function () {
+    app(TenantContext::class)->run($this->merchant->id, function () {
+        MerchantPaymentSettings::first()->update(['selling_mode' => 'OFFLINE', 'card_enabled' => true]);
+        $this->payment->update(['method' => 'CARD_COUNTER']);
+    });
+    $this->withHeaders(['X-Device-Id' => $this->device->id, 'X-Device-Token' => $this->deviceToken])->withToken($this->customerToken)
+        ->postJson($this->path.'/bind-customer')->assertOk()->assertJsonPath('status', 'ACTIVE')->assertJsonPath('enabledMethods', ['UPI', 'CARD_COUNTER']);
+});
+
+it('requires a device at the checkout service boundary and issues proof for a new browser', function () {
+    $service = app(CheckoutService::class);
+    expect(fn () => $service->execute(new CheckoutData('cancel', $this->payment->id)))->toThrow(ValidationException::class, 'DEVICE_REQUIRED');
+    app(TenantContext::class)->run($this->merchant->id, fn () => $this->payment->update(['device_id' => null]));
+    $result = $service->execute(new CheckoutData('state', $this->payment->id, 'new-browser'));
+    expect($result->data['deviceToken'])->toBeString()->not->toBeEmpty();
+});
+
+it('refuses simulation against a closed test payment', function () {
+    $admin = User::factory()->create(['is_platform_admin' => true]);
+    app(TenantContext::class)->run($this->merchant->id, function () {
+        $this->payment->update(['is_test' => true, 'status' => 'FAILED']);
+        MerchantTestMode::create(['enabled_at' => now()->subMinute(), 'expires_at' => now()->addMinutes(10)]);
+    });
+    expect(fn () => app(CheckoutService::class)->execute(new CheckoutData('simulate-observation', $this->payment->id, userId: $admin->id)))->toThrow(ValidationException::class, 'SESSION_NOT_ACTIVE');
+});
+
+it('preserves other initiated checkouts already on the replacement device', function () {
+    app(TenantContext::class)->run($this->merchant->id, function () {
+        $this->payment->update(['customer_id' => $this->customer->id]);
+        $other = PaymentSession::factory()->create(['customer_id' => $this->customer->id, 'device_id' => $this->device->id]);
+        $result = app(CheckoutService::class)->execute(new CheckoutData('end-and-restart-payment', $this->payment->id, $this->device->id, $this->deviceToken, $this->customerToken));
+        expect($result->data['terminatedSessionIds'])->toBe([$this->payment->id]);
+        expect($other->fresh()->status->value)->toBe('INITIATED');
+    });
 });

@@ -118,3 +118,17 @@ it('clears old-account message receipts on reconnect and never returns OAuth tok
     $response = $this->postJson('/merchant/gmail/test', ['merchantId' => $this->merchant->id])->assertOk();
     expect($response->getContent())->not->toContain('access_token', 'refresh_token', 'client_secret', 'ACCESS-PRIVATE', 'REFRESH-PRIVATE', 'client-secret');
 });
+
+it('refuses suspended merchants and invalid Gmail profile responses', function () {
+    $this->merchant->update(['status' => 'SUSPENDED']);
+    $this->actingAs($this->owner, 'sanctum')->getJson('/merchant/gmail/connect?merchantId='.$this->merchant->id)->assertJsonPath('error.code', 'MERCHANT_NOT_FOUND');
+    $this->merchant->update(['status' => 'ACTIVE']);
+    Http::swap(new Factory);
+    Http::fake([
+        'https://oauth2.googleapis.com/token' => Http::response(['access_token' => 'access', 'refresh_token' => 'refresh', 'expires_in' => 3600]),
+        'https://gmail.googleapis.com/gmail/v1/users/me/profile' => Http::response(['emailAddress' => 'invalid']),
+    ]);
+    $state = gmailState($this->get('/merchant/gmail/connect?merchantId='.$this->merchant->id));
+    $this->get('/merchant/gmail/callback?'.http_build_query(['state' => $state, 'code' => 'code']))->assertStatus(400);
+    expect(MerchantGmailConnection::withoutGlobalScopes()->count())->toBe(0);
+});

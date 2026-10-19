@@ -17,5 +17,5 @@ foreach ($xml->xpath('//file') ?: [] as $file) {
     $covered += (int) $file->metrics['coveredstatements'];
 }
 $percentage = $total > 0 ? 100 * $covered / $total : 0;
-printf("Domain coverage: %.2f%% (required: 90%%)\n", $percentage);
-exit($percentage >= 90 ? 0 : 1);
+printf("Domain coverage: %.2f%% (required: 100%%)\n", $percentage);
+exit($total > 0 && $covered === $total ? 0 : 1);

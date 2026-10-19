@@ -11,6 +11,7 @@ use App\Domain\Payments\Events\PaymentStateChanged;
 use App\Domain\Payments\Events\QueueUpdated;
 use App\Domain\Payments\Events\SessionActivated;
 use App\Domain\Realtime\Events\RealtimeUpdate;
+use App\Domain\Realtime\Listeners\PublishPaymentUpdate;
 use App\Domain\Shared\Services\TenantContext;
 use App\Domain\Verification\Events\PaymentFraudBlocked;
 use App\Models\CustomerSession;
@@ -133,3 +134,14 @@ it('keeps a committed transition successful when broadcasting cannot be queued',
         expect($payment->refresh()->status)->toBe(PaymentStatus::CANCELLED);
     });
 });
+
+it('publishes the reason a customer replaced a payment without arbitrary metadata', function (string $reason) {
+    Event::fake([RealtimeUpdate::class]);
+    config(['broadcasting.default' => 'log']);
+    $merchant = Merchant::factory()->create();
+    app(TenantContext::class)->run($merchant->id, function () use ($merchant, $reason) {
+        $payment = PaymentSession::factory()->create(['status' => 'CANCELLED', 'metadata' => ['reason' => $reason, 'secret' => 'private']]);
+        app(PublishPaymentUpdate::class)->handle(new PaymentStateChanged($merchant->id, $payment->id, null, PaymentStatus::ACTIVE, PaymentStatus::CANCELLED));
+        Event::assertDispatched(RealtimeUpdate::class, fn ($event) => $event->broadcastWith()['reason'] === $reason && ! str_contains(json_encode($event->broadcastWith()), 'private'));
+    });
+})->with(['REPLACED_ON_ANOTHER_DEVICE', 'USER_RETRY_NEW_PAYMENT']);

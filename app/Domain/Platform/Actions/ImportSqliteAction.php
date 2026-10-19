@@ -67,10 +67,9 @@ final class ImportSqliteAction
                     $template = new $class;
                     $table = $template->getTable();
                     $counts[$table] = 0;
+                    // ERRMODE_EXCEPTION makes query failures throw instead of returning false.
+                    /** @var \PDOStatement $rows */
                     $rows = $source->query('SELECT * FROM "'.$table.'"');
-                    if ($rows === false) {
-                        throw new ImportException(ErrorCode::IMPORT_SOURCE_INVALID);
-                    }
                     foreach ($rows as $row) {
                         $attributes = $this->mapper->map($template, $row);
                         foreach (['current_active_session_id', 'attributed_observation_id'] as $column) {

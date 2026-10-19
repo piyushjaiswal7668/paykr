@@ -52,7 +52,7 @@
         ],
         "test": [
             "@php artisan config:clear",
-            "@php vendor/bin/pest --coverage --min=80 --coverage-clover=storage/coverage.xml",
+            "@php vendor/bin/pest --coverage --min=100 --coverage-clover=storage/coverage.xml",
             "@php scripts/check-domain-coverage.php"
         ],
         "post-autoload-dump": [

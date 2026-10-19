@@ -42,3 +42,19 @@ it('permits device inventory only to its customer or a persisted platform admini
     $this->actingAs($admin, 'sanctum')->getJson('/api/v1/devices/'.$device->id)->assertOk();
     $this->getJson('/api/v1/devices/customer/'.$owner->id)->assertOk();
 });
+
+it('preserves the existing device token on authenticated registration and rejects concurrent registration', function () {
+    $key = @openssl_pkey_new(['private_key_type' => OPENSSL_KEYTYPE_EC, 'curve_name' => 'prime256v1']);
+    $public = openssl_pkey_get_details($key)['key'];
+    $result = $this->postJson('/api/v1/devices/register', ['publicKey' => $public])->assertOk();
+    $this->postJson('/api/v1/devices/register', ['publicKey' => $public, 'deviceToken' => $result->json('deviceToken')])
+        ->assertOk()->assertJsonPath('deviceToken', $result->json('deviceToken'))->assertJsonPath('isExisting', true);
+    $lock = Cache::lock('device-register:'.hash('sha256', $public), 10);
+    expect($lock->get())->toBeTrue();
+    try {
+        $this->postJson('/api/v1/devices/register', ['publicKey' => $public])->assertStatus(429);
+    } finally {
+        $lock->release();
+    }
+    expect(Device::count())->toBe(1);
+});
