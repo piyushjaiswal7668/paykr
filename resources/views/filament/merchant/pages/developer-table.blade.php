@@ -1,5 +1,7 @@
 <x-filament-panels::page>
-@if($result)<x-filament::section heading="Action result">@if(isset($result['key']) || isset($result['secret']))<p>Copy this credential securely. It is not included in audit logs.</p>@endif<pre class="whitespace-pre-wrap break-all">{{ json_encode($result, JSON_PRETTY_PRINT) }}</pre></x-filament::section>@endif
+@if(isset($result['invitationUrl']))
+@include('filament.invitation-link', ['invitationUrl' => $result['invitationUrl']])
+@elseif($result)<x-filament::section heading="Action result">@if(isset($result['key']) || isset($result['secret']))<p>Copy this credential securely. It is not included in audit logs.</p>@endif<pre class="whitespace-pre-wrap break-all">{{ json_encode($result, JSON_PRETTY_PRINT) }}</pre></x-filament::section>@endif
 {{ $this->table }}
 @if($this instanceof \App\Filament\Merchant\Pages\ApiKeys && is_file(public_path('sdk/paykr.min.js')))
 <x-filament::section heading="Website integration">
