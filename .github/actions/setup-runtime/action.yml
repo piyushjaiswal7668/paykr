@@ -1,0 +1,35 @@
+name: Paykr runtime setup
+description: Configure and verify the runtimes supplied by GitHub's Ubuntu 24.04 image.
+runs:
+  using: composite
+  steps:
+    - name: Configure PHP and coverage
+      shell: bash
+      run: |
+        set -euo pipefail
+        sudo update-alternatives --set php /usr/bin/php8.3
+        sudo phpdismod -v 8.3 -s cli xdebug
+        sudo phpenmod -v 8.3 -s cli pcov
+        php -r '
+          if (PHP_MAJOR_VERSION !== 8 || PHP_MINOR_VERSION !== 3) {
+              fwrite(STDERR, "PHP 8.3 is required.\n"); exit(1);
+          }
+          foreach (["intl", "mbstring", "pdo_mysql", "pdo_sqlite", "pcntl", "bcmath", "pcov"] as $extension) {
+              if (!extension_loaded($extension)) {
+                  fwrite(STDERR, "Missing PHP extension: $extension\n"); exit(1);
+              }
+          }
+          if (!ini_get("pcov.enabled")) {
+              fwrite(STDERR, "PCOV must be enabled.\n"); exit(1);
+          }
+        '
+        php --version
+        composer --version
+    - name: Verify Node and Go
+      shell: bash
+      run: |
+        set -euo pipefail
+        node -e 'if (Number(process.versions.node.split(".")[0]) !== 22) throw new Error("Node 22 is required")'
+        node --version
+        npm --version
+        go version
