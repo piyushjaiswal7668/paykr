@@ -117,3 +117,39 @@ it('returns safe health and blocked-state notices', function () {
     $this->getJson($this->path.'/state')->assertOk()->assertJsonPath('status', 'BLOCKED')->assertJsonPath('blockedNotice.title', 'FRAUDULENT ACTIVITY DETECTED');
     $this->postJson($this->path.'/payment-done')->assertForbidden();
 });
+
+it('uses the verified customer instead of unverified merchant details at first checkout binding', function () {
+    $hint = Customer::factory()->create();
+    app(TenantContext::class)->run($this->merchant->id, fn () => $this->payment->update(['customer_id' => $hint->id]));
+    $this->withHeaders(['X-Device-Id' => $this->device->id, 'X-Device-Token' => $this->deviceToken]);
+    $this->postJson($this->path.'/bind-customer')->assertUnauthorized();
+    $this->withToken($this->customerToken)->postJson($this->path.'/bind-customer')
+        ->assertOk()->assertJsonPath('status', 'ACTIVE')->assertJsonPath('customer.id', $this->customer->id);
+    $this->get('/checkout/'.$this->payment->id.'/qr.svg')->assertOk()->assertHeader('Content-Type', 'image/svg+xml');
+    $this->withToken($this->customerToken)->postJson($this->path.'/bind-customer')->assertOk();
+    $this->assertDatabaseHas('audit_logs', ['entity_id' => $this->payment->id, 'action' => 'CUSTOMER_AUTHENTICATED_AND_BOUND']);
+});
+
+it('does not replace an authenticated customer even when a conflict leaves the payment initiated', function () {
+    app(TenantContext::class)->run($this->merchant->id, function () {
+        PaymentSession::factory()->forAccount($this->account)->active()->create([
+            'customer_id' => $this->customer->id, 'device_id' => $this->device->id,
+        ]);
+    });
+    $this->withHeaders(['X-Device-Id' => $this->device->id, 'X-Device-Token' => $this->deviceToken])
+        ->withToken($this->customerToken)->postJson($this->path.'/bind-customer')
+        ->assertOk()->assertJsonPath('status', 'INITIATED');
+    $other = Customer::factory()->create();
+    $token = 'csess_'.str_repeat('d', 64);
+    CustomerSession::factory()->create(['customer_id' => $other->id, 'token_hash' => hash('sha256', $token)]);
+    $this->withToken($token)->postJson($this->path.'/bind-customer')->assertStatus(409)->assertJsonPath('code', 'SESSION_ALREADY_BOUND');
+    $this->assertDatabaseHas('payment_sessions', ['id' => $this->payment->id, 'customer_id' => $this->customer->id]);
+});
+
+it('does not replace a customer on an already active payment', function () {
+    $other = Customer::factory()->create();
+    app(TenantContext::class)->run($this->merchant->id, fn () => $this->payment->update(['customer_id' => $other->id, 'status' => 'ACTIVE', 'expires_at' => now()->addMinutes(5)]));
+    $this->withHeaders(['X-Device-Id' => $this->device->id, 'X-Device-Token' => $this->deviceToken])
+        ->withToken($this->customerToken)->postJson($this->path.'/bind-customer')->assertStatus(409)->assertJsonPath('code', 'SESSION_ALREADY_BOUND');
+    $this->assertDatabaseHas('payment_sessions', ['id' => $this->payment->id, 'customer_id' => $other->id]);
+});

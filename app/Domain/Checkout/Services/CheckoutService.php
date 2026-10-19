@@ -206,8 +206,15 @@ final class CheckoutService
             if ($payment->status->isTerminal()) {
                 throw new ValidationException(ErrorCode::PAYMENT_CLOSED);
             }
-            if ($payment->customer_id !== null && $payment->customer_id !== $customer->id) {
-                throw new ValidationException(ErrorCode::SESSION_ALREADY_BOUND);
+            $previousCustomerId = $payment->customer_id;
+            if ($previousCustomerId !== null && $previousCustomerId !== $customer->id) {
+                // API customer details are provisional until the first authenticated binding.
+                // A conflict can leave an authenticated payment INITIATED, so status alone is insufficient.
+                $alreadyAuthenticated = AuditLog::where('entity_type', 'PAYMENT_SESSION')
+                    ->where('entity_id', $payment->id)->where('action', 'CUSTOMER_AUTHENTICATED_AND_BOUND')->exists();
+                if ($payment->status !== PaymentStatus::INITIATED || $alreadyAuthenticated) {
+                    throw new ValidationException(ErrorCode::SESSION_ALREADY_BOUND);
+                }
             }
             if (MerchantCustomerBlock::where('customer_id', $customer->id)->exists()) {
                 throw new ValidationException(ErrorCode::CUSTOMER_BLOCKED_BY_MERCHANT);
@@ -223,7 +230,7 @@ final class CheckoutService
             if ($conflicts->isEmpty() && $payment->status === PaymentStatus::INITIATED) {
                 $payment = $this->activate($payment, $actor);
             }
-            $this->audit($payment, 'CUSTOMER_AUTHENTICATED_AND_BOUND', new Actor(ActorType::CUSTOMER, $customer->id, $payment->merchant_id));
+            $this->audit($payment, 'CUSTOMER_AUTHENTICATED_AND_BOUND', new Actor(ActorType::CUSTOMER, $customer->id, $payment->merchant_id), ['previousCustomerId' => $previousCustomerId]);
 
             return $payment;
         }, 5);
