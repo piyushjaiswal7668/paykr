@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Models\Customer;
 use App\Models\CustomerOtpChallenge;
 use App\Models\CustomerSession;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -87,4 +88,44 @@ it('limits sends over the full mobile window and validates signup identity uniqu
         RateLimiter::clear('otp-cooldown:9876543210');
     }
     $this->postJson('/api/v1/customer/send-otp', ['mobileNumber' => '9876543210'])->assertStatus(429);
+});
+
+it('serializes OTP sends by phone and IP', function (string $key) {
+    $lock = Cache::lock($key, 15);
+    expect($lock->get())->toBeTrue();
+    try {
+        $this->postJson('/api/v1/customer/send-otp', ['mobileNumber' => '9876543210'])->assertStatus(429);
+        expect(CustomerOtpChallenge::count())->toBe(0);
+        Http::assertNothingSent();
+    } finally {
+        $lock->release();
+    }
+})->with(['otp-send:9876543210', 'otp-send-ip:127.0.0.1']);
+
+it('rejects duplicate registration identities and an email claimed while an OTP is pending', function () {
+    $otp = $this->postJson('/api/v1/customer/send-otp', ['mobileNumber' => '9876543210', 'name' => 'Pending', 'email' => 'claimed@example.com', 'isNewUser' => true])->assertOk()->json('devOtp');
+    Customer::factory()->create(['email' => 'claimed@example.com', 'mobile_number' => '9876543211']);
+    $this->postJson('/api/v1/customer/verify-otp', ['mobileNumber' => '9876543210', 'otp' => $otp])->assertJsonPath('code', 'EMAIL_TAKEN');
+    $this->postJson('/api/v1/customer/register', ['name' => 'Duplicate', 'mobileNumber' => '9876543210', 'email' => 'claimed@example.com', 'password' => 'secret123'])->assertJsonPath('code', 'EMAIL_TAKEN');
+    $this->postJson('/api/v1/customer/register', ['name' => 'Duplicate', 'mobileNumber' => '9876543211', 'email' => 'different@example.com', 'password' => 'secret123'])->assertJsonPath('code', 'MOBILE_TAKEN');
+    expect(Customer::count())->toBe(1);
+});
+
+it('upgrades a legacy password hash after successful authentication', function () {
+    $customer = Customer::factory()->create(['email' => 'legacy@example.com', 'password_hash' => password_hash('secret123', PASSWORD_BCRYPT, ['cost' => 5]), 'password_needs_rehash' => true]);
+    $this->postJson('/api/v1/customer/login', ['identifier' => $customer->email, 'password' => 'secret123'])->assertOk();
+    expect($customer->fresh()->password_needs_rehash)->toBeFalse();
+    expect(password_verify('secret123', $customer->fresh()->password_hash))->toBeTrue();
+});
+
+it('maps a concurrent registration unique violation to a safe identity error', function () {
+    $dispatcher = Customer::getEventDispatcher();
+    Customer::setEventDispatcher(clone $dispatcher);
+    Customer::creating(fn () => throw new UniqueConstraintViolationException('sqlite', 'insert customer', [], new PDOException('unique violation')));
+    try {
+        $this->postJson('/api/v1/customer/register', ['name' => 'Concurrent Customer', 'mobileNumber' => '9876543210', 'password' => 'secret123'])->assertJsonPath('code', 'MOBILE_TAKEN')->assertDontSee('unique violation');
+        expect(Customer::count())->toBe(0);
+    } finally {
+        Customer::setEventDispatcher($dispatcher);
+    }
 });

@@ -15,6 +15,7 @@ use App\Models\User;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 uses(RefreshDatabase::class);
 
@@ -60,4 +61,19 @@ it('retains scoped tenant and audit identity after Livewire persistent middlewar
     expect(PaymentSession::find($payment->id)?->id)->toBe($payment->id);
     app(StoreSettings::class)->save(new PanelCommand($owner->id, $merchant->id, 'branding', data: ['app_name' => 'Livewire update', 'primary_color' => '#2563eb', 'header_theme' => 'solid']));
     expect(AuditLog::where('action', 'STORE_BRANDING_UPDATED')->sole()->ip_address)->toBe('192.0.2.81');
+});
+
+it('expires impersonation before allowing a merchant mutation', function () {
+    $owner = User::factory()->create();
+    $admin = User::factory()->create(['is_platform_admin' => true]);
+    $this->actingAs($owner, 'web')->actingAs($admin, 'admin');
+    Filament::setCurrentPanel(Filament::getPanel('merchant'));
+    $request = Request::create('/merchant/support', 'POST');
+    $request->setLaravelSession(app('session.store'));
+    $request->session()->put(['paykr_impersonator' => $admin->id, 'paykr_impersonation_expires' => now()->subMinute()->timestamp]);
+    expect(fn () => app(PanelAudit::class)->handle($request, function () {
+        $this->fail('Expired support session must not reach the action');
+    }))->toThrow(HttpException::class, 'Support session expired.');
+    $this->assertGuest('web');
+    expect($request->session()->has('paykr_impersonator'))->toBeFalse();
 });

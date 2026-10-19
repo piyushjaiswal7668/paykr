@@ -128,3 +128,16 @@ it('keeps UUID device IDs stable and parses dates in UTC', function () {
     expect(app(LegacyRowMapper::class)->deviceId($device->id))->toBe($device->id);
     expect(LegacyRowMapper::date('2026-10-18T05:30:00+05:30'))->toBe('2026-10-18 00:00:00.000');
 });
+
+it('rolls back the import when a model write silently refuses a source row', function () {
+    $dispatcher = Merchant::getEventDispatcher();
+    Merchant::setEventDispatcher(clone $dispatcher);
+    // A saving listener can veto a row without an SQL exception; the final count must detect it.
+    WebhookDelivery::saving(fn () => false);
+    try {
+        expect(fn () => app(ImportSqliteAction::class)->handle(new ImportSqliteData($this->legacy->path)))->toThrow(ImportException::class, 'IMPORT_FAILED');
+        expect(Merchant::count())->toBe(0);
+    } finally {
+        Merchant::setEventDispatcher($dispatcher);
+    }
+});

@@ -390,3 +390,31 @@ it('can roll back and reapply the persisted grace deadline migration', function 
     $this->artisan('migrate')->assertSuccessful();
     expect(Schema::hasColumn('payment_sessions', 'verification_grace_expires_at'))->toBeTrue();
 });
+
+it('holds an unaddressed credit for a recently closed payment', function () {
+    withinVerificationMerchant(function ($account, $payment, $customer, $merchant, $pipeline) {
+        app(PaymentTransitionService::class)->transition($payment->id, PaymentStatus::EXPIRED, new Actor(ActorType::SYSTEM));
+        $pipeline->process(bankInput($account));
+        expect($payment->fresh()->status)->toBe(PaymentStatus::EXPIRED);
+        expect(PaymentObservation::sole()->attribution_status)->toBe(AttributionStatus::LATE_UNMATCHED);
+    });
+});
+
+it('honors an earlier payment deadline when verification grace elapses later', function () {
+    withinVerificationMerchant(function ($account, $payment, $customer, $merchant, $pipeline, $engine) {
+        $payment->update(['expires_at' => now()->subSeconds(2), 'verification_grace_expires_at' => now()->subSecond()]);
+        $engine->finalizeLevel1($payment->id);
+        expect($payment->fresh()->status)->toBe(PaymentStatus::EXPIRED);
+        expect($payment->fresh()->verification_grace_expires_at)->toBeNull();
+    });
+});
+
+it('routes verified untargeted evidence to late review when only a closed order matches', function () {
+    withinVerificationMerchant(function ($account, $payment, $customer, $merchant, $pipeline, $engine) {
+        app(PaymentTransitionService::class)->transition($payment->id, PaymentStatus::EXPIRED, new Actor(ActorType::SYSTEM));
+        $input = ObservationNormalizer::normalize(new ObservationData($account->id, ObserverSource::GMAIL, amountPaise: 20000, observedAt: now()->toImmutable(), bankReferenceNumber: '123456789012'));
+        $engine->process($input);
+        expect(PaymentObservation::sole()->attribution_status)->toBe(AttributionStatus::LATE_UNMATCHED);
+        expect($payment->fresh()->status)->toBe(PaymentStatus::EXPIRED);
+    });
+});
