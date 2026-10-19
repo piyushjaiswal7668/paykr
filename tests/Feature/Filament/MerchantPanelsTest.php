@@ -9,9 +9,17 @@ use App\Domain\Shared\Services\TenantContext;
 use App\Filament\Merchant\Pages\AndroidSms;
 use App\Filament\Merchant\Pages\BrandIdentity;
 use App\Filament\Merchant\Pages\CounterDesk;
+use App\Filament\Merchant\Pages\CreditReviews;
+use App\Filament\Merchant\Pages\GmailConnection;
+use App\Filament\Merchant\Pages\LiveMonitor;
+use App\Filament\Merchant\Pages\Observers;
+use App\Filament\Merchant\Pages\PaymentMethods;
+use App\Filament\Merchant\Pages\TeamMembers;
+use App\Filament\Merchant\Pages\Transactions;
 use App\Models\AuditLog;
 use App\Models\Merchant;
 use App\Models\MerchantBranding;
+use App\Models\MerchantPaymentSettings;
 use App\Models\ObserverPairingToken;
 use App\Models\PaymentObservation;
 use App\Models\PaymentSession;
@@ -35,7 +43,7 @@ beforeEach(function () {
 
 it('renders the merchant workflow pages', function (string $page) {
     $this->get('/merchant/'.$this->merchant->slug.'/'.$page)->assertOk();
-})->with(['live-monitor', 'counter-desk', 'transactions', 'receiving-accounts', 'support-tickets', 'customers', 'brand-identity', 'payment-methods', 'android-sms', 'gmail-connection', 'observers', 'webhooks', 'api-keys', 'payment-simulator', 'team-members']);
+})->with(['live-monitor', 'counter-desk', 'transactions', 'receiving-accounts', 'support-tickets', 'customers', 'brand-identity', 'payment-methods', 'android-sms', 'gmail-connection', 'observers', 'webhooks', 'api-keys', 'payment-simulator', 'team-members', 'training']);
 
 it('denies a cashier access to settings and checks permissions again at the service boundary', function () {
     $this->merchant->users()->updateExistingPivot($this->user->id, ['role' => 'cashier']);
@@ -122,5 +130,44 @@ it('stores an uploaded logo on the public disk and persists its URL', function (
         $url = MerchantBranding::sole()->logo_url;
         expect($url)->toContain('/storage/brand-logos/');
         Storage::disk('public')->assertExists('brand-logos/'.basename($url));
+    });
+});
+
+it('saves payment methods and returns usable team invitation links', function () {
+    Filament::setCurrentPanel(Filament::getPanel('merchant'));
+    Filament::setTenant($this->merchant);
+    app(TenantContext::class)->run($this->merchant->id, function () {
+        Livewire::test(PaymentMethods::class)
+            ->fillForm(['selling_mode' => 'ONLINE', 'cod_enabled' => true, 'cash_enabled' => false, 'card_enabled' => false])
+            ->call('save')->assertHasNoErrors()->assertNotified('Payment methods saved');
+        expect(MerchantPaymentSettings::sole()->cod_enabled)->toBeTrue();
+        $component = Livewire::test(TeamMembers::class)
+            ->callTableAction('invite', data: ['name' => 'New Member', 'email' => 'new@example.com', 'role' => 'manager']);
+        expect($component->get('result')['invitationUrl'])->toContain('/merchant/password-reset/reset?');
+        expect($component->get('result'))->not->toHaveKey('invitationToken');
+        $component->callTableAction('invite', data: ['name' => 'New Member', 'email' => 'new@example.com', 'role' => 'manager']);
+        expect($this->merchant->users()->count())->toBe(2);
+    });
+});
+
+it('accepts live refresh events on merchant operational pages', function (string $page) {
+    Filament::setCurrentPanel(Filament::getPanel('merchant'));
+    Filament::setTenant($this->merchant);
+    app(TenantContext::class)->run($this->merchant->id, fn () => Livewire::test($page)->dispatch('paykr-live-update')->assertSuccessful());
+})->with([
+    CounterDesk::class,
+    CreditReviews::class,
+    LiveMonitor::class,
+    Observers::class,
+    Transactions::class,
+]);
+
+it('handles empty Android pairing refreshes and starts Gmail authorization', function () {
+    Filament::setCurrentPanel(Filament::getPanel('merchant'));
+    Filament::setTenant($this->merchant);
+    config(['paykr.gmail.client_id' => 'test-client', 'paykr.gmail.client_secret' => 'test-secret']);
+    app(TenantContext::class)->run($this->merchant->id, function () {
+        Livewire::test(AndroidSms::class)->call('refreshPairing')->assertSet('result', []);
+        Livewire::test(GmailConnection::class)->callAction('connect')->assertRedirect();
     });
 });

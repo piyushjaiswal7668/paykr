@@ -134,7 +134,7 @@ The Node SDK is built from source; registry publication is not assumed.
 
 ```sh
 composer test:quick
-composer test       # requires PCOV/Xdebug; checks overall and domain coverage
+composer test       # requires PCOV/Xdebug; enforces 100% PHP line coverage
 composer analyse
 vendor/bin/pint --test
 npm run typecheck

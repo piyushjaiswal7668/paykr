@@ -282,3 +282,88 @@ it('lets a manager configure Gmail and start OAuth without exposing stored secre
         expect(MerchantGmailConnection::first()->status->value)->toBe('DISCONNECTED');
     });
 });
+
+it('rejects unknown management operations without recording a mutation', function (string $service) {
+    expect(fn () => app($service)->{$service === StoreSettings::class ? 'save' : 'execute'}(($this->command)('unknown')))->toThrow(ValidationException::class);
+    expect(AuditLog::withoutGlobalScopes()->count())->toBe(0);
+})->with([DeveloperTools::class, MerchantOperations::class, StoreSettings::class]);
+
+it('preserves account history and rejects unrelated customer and counter operations', function () {
+    app(TenantContext::class)->run($this->merchant->id, function () {
+        $service = app(MerchantOperations::class);
+        $account = PaymentReceivingAccount::factory()->create();
+        $payment = PaymentSession::factory()->forAccount($account)->create(['status' => 'FAILED']);
+        expect(fn () => $service->execute(($this->command)('account-delete', $account->id)))->toThrow(ValidationException::class);
+        expect($account->fresh())->not->toBeNull();
+        $pending = PaymentSession::factory()->create();
+        expect(fn () => $service->execute(($this->command)('counter-confirm', $pending->id)))->toThrow(ValidationException::class);
+        expect($pending->fresh()->status->value)->toBe('INITIATED');
+        $customer = Customer::factory()->create();
+        expect(fn () => $service->execute(($this->command)('customer-block', $customer->id, ['reason' => 'No relationship'])))->toThrow(ValidationException::class);
+        expect(MerchantCustomerBlock::count())->toBe(0);
+    });
+});
+
+it('rejects duplicate team invitations and unknown member operations', function () {
+    $service = app(TeamManagement::class);
+    expect(fn () => $service->execute(($this->command)('invite', data: ['name' => $this->user->name, 'email' => $this->user->email, 'role' => 'manager'])))->toThrow(ValidationException::class);
+    $member = User::factory()->create();
+    $this->merchant->users()->attach($member, ['role' => 'manager']);
+    expect(fn () => $service->execute(($this->command)('unknown', $member->id)))->toThrow(ValidationException::class);
+    expect($this->merchant->users()->whereKey($member->id)->sole()->pivot->role)->toBe('manager');
+});
+
+it('requires webhook configuration before creating a test payment', function () {
+    $this->merchant->update(['webhook_url' => null, 'webhook_secret' => null]);
+    expect(fn () => app(DeveloperTools::class)->execute(($this->command)('webhook-test')))->toThrow(ValidationException::class);
+    expect(PaymentSession::withoutGlobalScopes()->count())->toBe(0);
+});
+
+it('rejects duplicate merchant slugs and platform administrators as merchant owners', function () {
+    $admin = User::factory()->create(['is_platform_admin' => true]);
+    $service = app(PlatformOperations::class);
+    $data = ['business_name' => 'Test Shop', 'slug' => $this->merchant->slug, 'contact_email' => 'contact@example.com', 'owner_name' => 'Owner', 'owner_email' => $admin->email];
+    expect(fn () => $service->execute(new PanelCommand($admin->id, $this->merchant->id, 'merchant-save', data: $data)))->toThrow(ValidationException::class);
+    $data['slug'] = 'new-test-shop';
+    expect(fn () => $service->execute(new PanelCommand($admin->id, $this->merchant->id, 'merchant-save', data: $data)))->toThrow(ValidationException::class);
+    expect(Merchant::where('slug', 'new-test-shop')->exists())->toBeFalse();
+    expect(fn () => $service->execute(new PanelCommand($admin->id, $this->merchant->id, 'unknown')))->toThrow(ValidationException::class);
+});
+
+it('rejects invalid APK archives and publication failures without writing an audit', function (string $scenario, string $code) {
+    $admin = User::factory()->create(['is_platform_admin' => true]);
+    $original = storage_path();
+    $temporary = sys_get_temp_dir().'/paykr-apk-failure-'.bin2hex(random_bytes(8));
+    File::ensureDirectoryExists($temporary.'/app/private/releases');
+    app()->useStoragePath($temporary);
+    try {
+        $file = $temporary.'/app/upload.apk';
+        if ($scenario === 'invalid') {
+            File::put($file, 'not a zip archive');
+        } else {
+            $zip = new ZipArchive;
+            $zip->open($file, ZipArchive::CREATE);
+            $zip->addFromString('AndroidManifest.xml', 'fixture');
+            if ($scenario !== 'missing') {
+                $zip->addFromString('classes.dex', 'fixture');
+            }
+            $zip->close();
+        }
+        if ($scenario === 'copy') {
+            mkdir($temporary.'/app/private/releases/paykr-observer-1.0.0-'.hash_file('sha256', $file).'.apk');
+        } elseif ($scenario === 'rename') {
+            mkdir($temporary.'/app/private/releases/paykr-sms-gateway.apk');
+        }
+        expect(fn () => @app(PlatformSettings::class)->publishApk($admin->id, $file, '1.0.0', null))->toThrow(ValidationException::class, $code);
+        expect(AuditLog::withoutGlobalScopes()->where('action', 'APK_PUBLISHED')->count())->toBe(0);
+    } finally {
+        app()->useStoragePath($original);
+        File::deleteDirectory($temporary);
+    }
+})->with([['invalid', 'VALIDATION_FAILED'], ['missing', 'VALIDATION_FAILED'], ['copy', 'INTERNAL_ERROR'], ['rename', 'INTERNAL_ERROR']]);
+
+it('reports unavailable WhatsApp administration without a sidecar connection', function () {
+    $admin = User::factory()->create(['is_platform_admin' => true]);
+    config(['paykr.sidecars.whatsapp_enabled' => false]);
+    expect(fn () => app(PlatformOperations::class)->execute(new PanelCommand($admin->id, '', 'whatsapp-connect')))->toThrow(ValidationException::class, 'SERVICE_UNAVAILABLE');
+});

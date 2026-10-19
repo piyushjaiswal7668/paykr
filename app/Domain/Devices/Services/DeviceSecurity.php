@@ -34,38 +34,30 @@ final class DeviceSecurity
     /** @param string|array<string, mixed> $publicKey */
     public static function verifySignature(string|array $publicKey, string $payload, string $signatureBase64): bool
     {
-        try {
-            $pem = self::canonicalPublicKey($publicKey);
-            if ($pem === null) {
-                return false;
-            }
-            $key = openssl_pkey_get_public($pem);
-            if ($key === false) {
-                return false;
-            }
-            $signature = base64_decode(trim($signatureBase64), true);
-            if ($signature === false || $signature === '') {
-                return false;
-            }
-            if (strlen($signature) === 64) {
-                $integers = '';
-                foreach (str_split($signature, 32) as $part) {
-                    $part = ltrim($part, "\0");
-                    if ($part === '' || ord($part[0]) >= 128) {
-                        $part = "\0".$part;
-                    }
-                    $integers .= "\x02".chr(strlen($part)).$part;
-                }
-                $der = "\x30".chr(strlen($integers)).$integers;
-                if (@openssl_verify($payload, $der, $key, OPENSSL_ALGO_SHA256) === 1) {
-                    return true;
-                }
-            }
-
-            return @openssl_verify($payload, $signature, $key, OPENSSL_ALGO_SHA256) === 1;
-        } catch (JsonException) {
+        $pem = self::canonicalPublicKey($publicKey);
+        if ($pem === null) {
             return false;
         }
+        $signature = base64_decode(trim($signatureBase64), true);
+        if ($signature === false || $signature === '') {
+            return false;
+        }
+        if (strlen($signature) === 64) {
+            $integers = '';
+            foreach (str_split($signature, 32) as $part) {
+                $part = ltrim($part, "\0");
+                if ($part === '' || ord($part[0]) >= 128) {
+                    $part = "\0".$part;
+                }
+                $integers .= "\x02".chr(strlen($part)).$part;
+            }
+            $der = "\x30".chr(strlen($integers)).$integers;
+            if (@openssl_verify($payload, $der, $pem, OPENSSL_ALGO_SHA256) === 1) {
+                return true;
+            }
+        }
+
+        return @openssl_verify($payload, $signature, $pem, OPENSSL_ALGO_SHA256) === 1;
     }
 
     /** @param string|array<string, mixed> $publicKey */
@@ -86,9 +78,6 @@ final class DeviceSecurity
                 }
                 // Fixed SubjectPublicKeyInfo prefix for id-ecPublicKey / prime256v1.
                 $publicKey = base64_encode(hex2bin('3059301306072a8648ce3d020106082a8648ce3d03010703420004').$x.$y);
-            }
-            if (! is_string($publicKey)) {
-                return null;
             }
             if (! str_contains($publicKey, 'BEGIN PUBLIC KEY')) {
                 $publicKey = "-----BEGIN PUBLIC KEY-----\n".chunk_split(trim($publicKey), 64, "\n")."-----END PUBLIC KEY-----\n";
