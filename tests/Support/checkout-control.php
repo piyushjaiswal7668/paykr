@@ -28,6 +28,8 @@ app(TenantContext::class)->run($input['merchantId'], function () use ($input) {
             break;
         case 'deadline': $payment->update(['expires_at' => now()->addSeconds($input['seconds'])]);
             break;
+        case 'return-url': $payment->update(['return_url' => $input['url']]);
+            break;
         case 'mode':MerchantPaymentSettings::firstOrFail()->update(['selling_mode' => $input['mode'], 'cod_enabled' => true, 'cash_enabled' => true, 'card_enabled' => true]);
             break;
         case 'counter':app(MerchantOperations::class)->execute(new PanelCommand($input['ownerId'], $input['merchantId'], 'counter-confirm', $payment->id));

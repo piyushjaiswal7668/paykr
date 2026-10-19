@@ -123,3 +123,14 @@ synthetic evidence and temporary databases; it does not transfer money. Verify s
 failed, expired, duplicate and late-credit review paths, invalid signatures and webhook retries.
 Then perform an authorized small real payment on your own configured deployment and verify
 bank receipt, Paykr status and exactly one fulfilment. Keep all required workers running.
+
+### Returning from checkout
+
+When creating a standalone checkout, set `returnUrl` to your website's order-status
+page. Paykr returns there after success or confirmed cancellation. The return page
+must fetch the payment status through your backend; arriving at that URL does not
+mean a payment succeeded. Without `returnUrl`, checkout cannot determine where to
+return the customer.
+
+Embedded SDK checkout reports cancellation to the parent page. Configure the SDK's
+`cancelledUrl` (or `data-cancelled-url`) for a separate cancellation destination.

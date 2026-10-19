@@ -216,7 +216,7 @@ function App() {
         emitted.current = state.status;
         post(event, state);
         if (
-            state.status === "SUCCESS" &&
+            ["SUCCESS", "CANCELLED"].includes(state.status) &&
             !embedded &&
             safeUrl(state.returnUrl)
         ) {
@@ -569,15 +569,20 @@ function App() {
                                     If your account was debited, contact the
                                     merchant with your payment reference.
                                 </p>
-                                <button
-                                    className="primary"
-                                    disabled={busy}
-                                    onClick={() =>
-                                        void action("retry-new-payment")
-                                    }
-                                >
-                                    Try again
-                                </button>
+                                {!embedded && safeUrl(state.returnUrl) ? (
+                                    <a
+                                        className="primary"
+                                        href={safeUrl(state.returnUrl)!}
+                                    >
+                                        Return to merchant
+                                    </a>
+                                ) : !embedded ? (
+                                    <p>
+                                        Return to the merchant website to start a
+                                        new payment. No return link was provided
+                                        for this order.
+                                    </p>
+                                ) : null}
                                 <button onClick={() => setSheet("help")}>
                                     Get help
                                 </button>
