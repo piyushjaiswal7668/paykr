@@ -41,12 +41,12 @@ final class UpiHealthService
                 'GREEN' => 'WORKING', 'YELLOW' => 'BUSY', default => 'ISSUES'
             },
             'tier' => $tier, 'label' => match ($tier) {
-                'GREEN' => 'Server Is Working', 'YELLOW' => 'UPI Server Busy', default => 'Server Facing Issues'
+                'GREEN' => 'Payment Verification Available', 'YELLOW' => 'Payment Verification Limited', default => 'Automatic Payment Verification Unavailable'
             },
             'isWorking' => $tier !== 'RED', 'reason' => 'SMS '.($sms ? 'healthy' : 'unavailable').'; Gmail '.($gmail ? 'healthy' : 'unavailable'),
             'smsHealthy' => $sms, 'gmailHealthy' => $gmail,
             'warning' => match ($tier) {
-                'GREEN' => null, 'YELLOW' => 'Your payment may go through extra processing seconds.', default => 'It is not recommended to pay by UPI right now as the server is facing downtime. We recommend paying by cash instead.'
+                'GREEN' => null, 'YELLOW' => 'Payment confirmation may take longer than usual. If you have already paid, do not pay again.', default => 'Automatic payment confirmation is currently unavailable. If you have already paid, do not pay again. Contact the merchant to verify your payment.'
             },
             'recommendedAlternative' => $tier === 'RED' && $cash ? 'CASH' : null,
         ];
