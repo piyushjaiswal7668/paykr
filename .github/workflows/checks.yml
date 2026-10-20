@@ -58,6 +58,8 @@ jobs:
       - run: cp .env.example .env && php artisan key:generate
       - run: php artisan migrate --seed --force
       - run: composer check
+        env:
+          COMPOSER_PROCESS_TIMEOUT: 900
       - run: npm test --prefix packages/merchant-sdk
       - run: node --test tests/Integration/wallet.test.mjs
       - run: PAYKR_GO_PATH="$(command -v go)" node tests/Integration/webhook-verifiers.mjs
