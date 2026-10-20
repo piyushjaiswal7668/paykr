@@ -36,6 +36,10 @@ if systemctl is-enabled --quiet paykr@whatsapp-sidecar; then
 fi
 # Let FPM and service users read newly installed dependencies too.
 chmod -R a+rX vendor
+# Composer's filament:upgrade republishes assets under the restrictive deployment umask.
+# Restore public readability after those hooks; do not follow storage symlinks.
+find public -type d -exec chmod a+rx {} +
+find public -type f -exec chmod a+r {} +
 if [[ -d services/whatsapp-sidecar/node_modules ]]; then
     chmod -R a+rX services/whatsapp-sidecar/node_modules
 fi
