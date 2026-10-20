@@ -10,7 +10,8 @@ Git, SSH, Composer, npm, PHP and Python tools. Pushes and PRs never deploy autom
 
 This workflow targets the existing Ubuntu installation: `/srv/paykr`, `ubuntu` deployment
 user, PHP 8.3 FPM, MySQL database `paykr_production`, Nginx, Redis, and the four enabled
-`paykr@` services. The already-enabled WhatsApp sidecar is installed and restarted too.
+`paykr@` services. An enabled WhatsApp sidecar remains running in graceful mode and
+is restarted only in maintenance mode.
 Google Messages is not supported by this deployment script. Source code stays read-only
 to www-data except Laravel's bootstrap cache. Production `.env`, storage, APP_KEY and
 WhatsApp credentials remain in `/srv/paykr/shared`. Never put them in GitHub or a bundle.
@@ -63,6 +64,10 @@ WhatsApp credentials remain in `/srv/paykr/shared`. Never put them in GitHub or 
    your laptop's address will block it. Review access rules before changing them; keep
    key-only SSH authentication. No self-hosted runner is installed on production.
 
+Before using graceful mode, verify the [nginx release-path, FPM reload, and worker-drain
+prerequisites](../deploy/README.md#oracle-production-deployment-modes). Existing sudo
+permissions may already cover FPM reload; only add a narrowly scoped rule if needed.
+
 ## What happens on deployment
 
 - All checks must pass on the exact main commit before the production job can run.
@@ -71,20 +76,27 @@ WhatsApp credentials remain in `/srv/paykr/shared`. Never put them in GitHub or 
 - A unique release directory is created for every run/attempt. Dependencies are installed
   on the server using its native architecture; node_modules are never copied from CI.
 - Existing Laravel configuration is cached; no APP_KEY generation or admin seeding occurs.
-- The app enters maintenance mode and FPM/background services stop before backup. There is
-  brief downtime, including a possible Nginx 502 while FPM is stopped. This is not zero downtime.
-- A MySQL dump and shared-runtime archive are written to a private directory under
-  `/srv/paykr/backups/`. These local backups are permission-protected, **not encrypted or
-  off-server**. Configure encrypted off-server backups separately; monitor free disk space.
-- Pending migrations run with `--force`. Review migrations for production safety before
-  merging; the workflow cannot prove schema backwards compatibility.
-- `current` switches atomically, caches refresh, services restart, and HTTPS `/health` must
+- Choose `graceful` (the default) for routine code releases. HTTP stays live; compiled views
+  are isolated per release and old hashed assets are retained. Pending migrations or changed
+  enabled WhatsApp sidecar code cause an early refusal, before live services are touched.
+- Choose `maintenance` explicitly for schema/sidecar changes. Laravel serves maintenance
+  responses while background services stop for backup/migration. FPM stays running and is
+  reloaded at activation. This mode still has planned downtime; merchants need retry protection.
+- A transactional MySQL dump is written under `/srv/paykr/backups/`. Graceful mode also backs
+  up `.env`; maintenance mode archives shared storage/sidecar state. Live mutable files are
+  not consistently backed up in graceful mode. Arrange separate storage backups/snapshots.
+  Local backups are permission-protected, **not encrypted or off-server**; configure encrypted
+  off-server backups separately and monitor free disk space.
+- Pending migrations run with `--force` only in maintenance mode. Review schema changes;
+  the workflow does not infer backwards compatibility or implement expand/contract rollout.
+- `current` switches atomically, FPM reloads, background services restart, and HTTPS `/health` must
   report UP with the payment clock RUNNING and healthy. TLS verification stays enabled.
 - If activation fails without migrations, the previous code release is restored and services
   restart. If migrations have started, the app stays in maintenance mode for manual diagnosis.
   No database is automatically restored, and migrations are never automatically reversed.
-- Old releases, uploads and backups are retained. Prune them manually under an explicit
-  retention policy after verification; this script never deletes payment data or old backups.
+- Old releases, uploads and backups are retained. Do not prune a release still used by
+  draining PHP requests or the running sidecar. Apply a retention policy after verification;
+  this script never deletes payment data or old backups.
 
 A green workflow confirms deployment and service health, not delivery of a real OTP or
 bank payment. Verify WhatsApp shows Connected and run the agreed checkout acceptance check.

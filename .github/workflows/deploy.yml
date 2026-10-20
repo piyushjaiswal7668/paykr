@@ -1,6 +1,13 @@
 name: Deploy production
 on:
   workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Graceful keeps HTTP live; maintenance is required for pending migrations or sidecar changes.'
+        type: choice
+        options: [graceful, maintenance]
+        default: graceful
+        required: true
 permissions:
   contents: read
 concurrency:
@@ -46,6 +53,7 @@ jobs:
           sha256sum assets.tar.gz source.tar.gz deploy.sh > SHA256SUMS
       - name: Upload and activate production release
         env:
+          DEPLOY_MODE: ${{ inputs.mode }}
           DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
           DEPLOY_USER: ${{ vars.DEPLOY_USER }}
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
@@ -53,6 +61,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          [[ "$DEPLOY_MODE" == graceful || "$DEPLOY_MODE" == maintenance ]]
           [[ "$DEPLOY_HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]]
           [[ "$DEPLOY_USER" =~ ^[a-z_][a-z0-9_-]*$ ]]
           test -n "$DEPLOY_SSH_KEY"
@@ -70,4 +79,4 @@ jobs:
           incoming="/srv/paykr/incoming/$GITHUB_SHA-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
           ssh "${options[@]}" "$remote" "umask 077; mkdir -p '$incoming'"
           scp "${options[@]}" dist/{source.tar.gz,assets.tar.gz,deploy.sh,SHA256SUMS} "$remote:$incoming/"
-          ssh "${options[@]}" "$remote" "cd '$incoming' && sha256sum --strict --check SHA256SUMS && bash deploy.sh '$GITHUB_SHA' '$incoming'"
+          ssh "${options[@]}" "$remote" "cd '$incoming' && sha256sum --strict --check SHA256SUMS && bash deploy.sh '$GITHUB_SHA' '$incoming' '$DEPLOY_MODE'"

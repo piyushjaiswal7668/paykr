@@ -62,7 +62,8 @@ const payment = await paykr.createPayment({
 });
 
 // Persist payment.paymentId against this order before redirecting the customer.
-// Reuse the attempt key on network retries; allocate a new one for a new attempt.
+// Reuse the attempt key and stored request on network retries.
+// Create a new attempt only after resolving the previous payment outcome.
 // Return payment.checkoutUrl to your frontend and navigate the customer there.
 ```
 
@@ -71,6 +72,124 @@ error handling and redirects in your own backend. The full runnable reference is
 [examples/coin-wallet-store](../examples/coin-wallet-store/README.md).
 For an embedded browser checkout, use the script snippet and integrity value shown on the
 merchant API Keys page. Update integrity values whenever deploying a changed SDK.
+
+### Retry protection during deployments and temporary outages
+
+Implement this on your **merchant backend**, not in the customer's browser. Paykr's SDK
+sends `idempotencyKey` as the `Idempotency-Key` header, but does not automatically retry.
+
+1. **Save first.** In a database transaction, save the order and a payment-attempt record
+   before calling Paykr. Generate the attempt key once (for example, a UUID), and persist
+   the exact JSON request body, state `CONNECTING`, retry count, and next retry time.
+   Calculate prices on your server. Use a unique constraint and a transaction/row lock so
+   double clicks, page refreshes, and concurrent workers reuse the same active attempt.
+2. **Reuse the same request.** Every retry must use the same merchant, `Idempotency-Key`,
+   and stored request body. Keep amount, order ID, customer, device ID (if supplied),
+   return URL, metadata, and consent unchanged. Do not regenerate timestamps or other
+   metadata during retries. A changed request with the same key is rejected.
+3. **Retry temporary failures.** Retry a network timeout/connection failure or HTTP
+   `502`, `503`, or `504` with bounded exponential backoff and jitter. Respect a valid
+   `Retry-After` header. A timeout does **not** prove that Paykr rejected the request:
+   Paykr may have created the payment before the response was lost.
+4. **Keep the booking pending.** Show “Connecting to payment service…” while retrying.
+   After automatic retries are exhausted, show “Payment setup is delayed. Please check
+   again shortly.” Keep the attempt unresolved; do not mark the booking failed or start
+   a new payment with a new key. A customer retry button should resume the saved attempt.
+5. **Persist the result.** Save Paykr's `paymentId` and `checkoutUrl` before returning the
+   checkout URL to the browser. If that local write fails, retry the same attempt to
+   recover the result. Never treat successful payment creation as successful payment.
+
+Suggested attempt fields: `order_id`, `idempotency_key` (unique), `request_json`, `state`,
+`retry_count`, `next_retry_at`, `payment_id`, and `checkout_url`. These states belong to
+**your website**; they are not new Paykr payment statuses. Store customer data securely
+and do not log API keys or full request bodies.
+
+The following Node backend helper performs **one delivery attempt**. It uses native
+`fetch` so an HTML maintenance response can be classified by HTTP status before parsing
+JSON. It does not replace your database, durable job queue, authentication, or ownership
+checks. `attempt.request_json` must be the original saved JSON string; put the
+idempotency key in the header, not in that JSON body.
+
+```js
+async function deliverPaymentAttempt(attempt) {
+  // Keep apiUrl and the secret key in trusted server configuration.
+  const apiUrl = process.env.PAYKR_API_URL.replace(/\/+$/, '');
+  let response;
+  try {
+    response = await fetch(`${apiUrl}/api/v1/payments`, {
+      method: 'POST',
+      redirect: 'error',
+      signal: AbortSignal.timeout(15_000),
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        'X-Api-Key': process.env.PAYKR_SECRET_KEY,
+        'Idempotency-Key': attempt.idempotency_key,
+      },
+      body: attempt.request_json,
+    });
+  } catch {
+    // Outcome is unknown. Configuration/TLS errors also need operator attention
+    // if they persist; never disable certificate verification to make retries work.
+    return { kind: 'retry', retryAfterMs: 0 };
+  }
+
+  if ([429, 502, 503, 504].includes(response.status)) {
+    const header = response.headers.get('retry-after');
+    const delay = header && /^\d+$/.test(header)
+      ? Number(header) * 1000
+      : header ? Date.parse(header) - Date.now() : 0;
+    return {
+      kind: 'retry',
+      retryAfterMs: Number.isFinite(delay) ? Math.max(0, delay) : 0,
+    };
+  }
+
+  let body;
+  try {
+    body = await response.json();
+  } catch {
+    // A missing/invalid success response is also ambiguous. Stop for reconciliation;
+    // do not create a different attempt or infer that payment creation failed.
+    return { kind: 'review', httpStatus: response.status };
+  }
+  if (!response.ok) {
+    // Do not blindly retry authentication, validation, idempotency, device-binding,
+    // or other application errors. Inspect the error and reconcile the same attempt.
+    return { kind: 'review', httpStatus: response.status, code: body?.code };
+  }
+  if (typeof body?.paymentId !== 'string' || typeof body?.checkoutUrl !== 'string') {
+    return { kind: 'review', httpStatus: response.status };
+  }
+  return { kind: 'created', payment: body };
+}
+```
+
+In your durable worker, claim one saved attempt at a time. For `retry`, atomically
+increment `retry_count`, persist `next_retry_at`, and release the job for later execution.
+For example, allow five retries after the initial request, using delays of 1, 2, 4, 8,
+and 16 seconds plus 0–500 ms jitter; use the longer of that delay and `retryAfterMs`.
+Do not hold a database transaction open during the HTTP request or sleep inside a web
+request. If a worker crashes after Paykr accepts the request, another worker must reclaim
+its expired job lease and reuse the saved key/body. After the retry limit, keep the
+attempt pending reconciliation and alert your operator rather than retrying forever.
+
+For `created`, atomically attach the payment to the order and mark the attempt resolved.
+If the returned session is already terminal, reconcile its payment status instead of
+assuming a fresh checkout. For `review`, preserve the attempt and inspect the error.
+Treat HTTP `429` as rate limiting: schedule a later retry of the same attempt according
+to the rate-limit response instead of repeatedly making immediate requests.
+
+Expose an authenticated order-status endpoint on **your website**, scoped to the order
+owner. The browser can poll it for `CONNECTING`, delayed setup, or a saved checkout URL.
+Do not expose the merchant secret key or let browsers select another customer's attempt.
+Once `payment_id` is known, use Paykr's status/recheck APIs and signed webhooks to track
+payment confirmation; do not call payment creation repeatedly to check whether money arrived.
+
+Graceful deployments reduce interruptions but do not remove network timeouts, server
+restarts, or exceptional maintenance windows. Keep this retry protection regardless of
+the Paykr deployment strategy. An idempotency key prevents duplicate creation for that
+attempt; it does not extend the payment deadline, reopen a closed payment, or prove payment.
 
 ## 4. Verify webhooks before fulfilment
 

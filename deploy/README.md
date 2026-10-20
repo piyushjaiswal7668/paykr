@@ -210,3 +210,89 @@ The optional `Paykr-Training-Library.zip` contains only the curated deployable l
 Do not deploy source captures or private credentials as public assets. See docs/TRAINING.md
 for access rules, updates and playback checks. Keep PHP-FPM available for protected media;
 if traffic grows, preserve authorization when introducing an internal nginx file handoff.
+
+## Oracle production deployment modes
+
+The `Deploy production` GitHub workflow now defaults to **graceful**. Its `mode` input
+can explicitly select **maintenance** for a scheduled schema/sidecar release. These
+script changes take effect after they are merged; they do not reconfigure an existing
+Oracle server by themselves.
+
+Before the first graceful deployment:
+
+- Confirm nginx's PHP location uses `fastcgi_param SCRIPT_FILENAME
+  $realpath_root$fastcgi_script_name;` (and `DOCUMENT_ROOT $realpath_root`) so an in-flight
+  request uses a concrete release path. Validate the complete configuration with
+  `sudo nginx -t` before reloading nginx. Do not replace the rest of your TLS, security,
+  proxy, and ACME configuration with a partial example.
+- Verify the deployment user can reload FPM. If not already covered, add only this scoped permission,
+  using `sudo visudo -f /etc/sudoers.d/paykr-fpm-reload` and validate with `sudo visudo -c`:
+
+  ```sudoers
+  ubuntu ALL=(root) NOPASSWD: /usr/bin/systemctl reload php8.3-fpm
+  ```
+
+  Keep existing scoped backup/service permissions. Never grant arbitrary shell or
+  unrestricted systemctl access. The deployment script checks this reload permission
+  before preparing or switching a release.
+- Keep systemd's `TimeoutStopSec=100` above Horizon's 80-second job timeout. SIGTERM
+  lets workers finish their current jobs; systemd can force termination after that
+  limit. Jobs and merchant requests must remain idempotent for crash recovery.
+- Use `/srv/paykr/current/...` in the existing service command files for this release
+  layout. Do not delete old releases still used by draining requests or running
+  sidecars. Retention cleanup must account for those processes.
+
+### Graceful (routine code releases)
+
+Dependencies, caches, and assets are prepared in a separate release while HTTP and
+workers stay live. Compiled Blade views are isolated under each release's
+`bootstrap/cache/views`; building a new release does not clear the live view cache.
+Previously published hashed build assets are retained for browsers with an older page
+open. This does not make incompatible JavaScript/API changes safe: keep the browser,
+API, queued-job payloads, and both PHP releases compatible during the handover.
+
+The script refuses pending database migrations and changes to an enabled WhatsApp
+sidecar **before touching live services**. It does not guess whether a migration is
+backward compatible. Use a reviewed maintenance release for those changes. A future
+expand/contract migration rollout can reduce that maintenance window, but is not
+implemented by this script.
+
+A live transactional MySQL dump and configuration backup are taken before activation.
+There is no application maintenance flag and no PHP-FPM stop. The symlink switches
+atomically, FPM reloads gracefully, and Horizon, clock, Reverb, and scheduler restart
+sequentially. The WhatsApp sidecar stays connected. Background verification may briefly
+pause during clock/worker handover; Reverb clients reconnect and fall back to polling.
+This is graceful HTTP deployment, not a guarantee of uninterrupted service on one VM.
+
+If post-activation health checks fail, the script restores the previous code symlink
+and reloads/restarts services without restoring the database or entering maintenance.
+New orders written during deployment remain in the database. Failed rollback/service
+recovery still requires operator intervention; check the workflow logs and `/health`.
+
+The live backup is **not** a consistent snapshot of mutable uploads or sidecar state.
+Graceful mode therefore archives only `.env` alongside the database dump. Keep separate
+scheduled storage/sidecar backups or coordinated snapshots. Maintenance mode retains
+the existing stopped-writer storage backup. Keep backups private and monitor disk space;
+retained old hashed assets and release directories need a separate retention policy.
+
+### Maintenance (schema or sidecar changes)
+
+Select `maintenance` explicitly when running the workflow. The script sets Laravel's
+maintenance flag with `Retry-After: 30`, leaves FPM serving maintenance responses, stops
+background services, backs up the database and shared files, applies migrations, and
+activates/restarts the release. Customers can receive HTTP 503 during this window;
+merchant backends must follow the [retry contract](../docs/INTEGRATION.md#retry-protection-during-deployments-and-temporary-outages).
+If migrations have started and deployment fails, maintenance stays on for inspection;
+the script does not attempt an unsafe automatic database rollback.
+
+Validate deployment behavior locally with:
+
+```sh
+bash -n deploy/oracle-deploy.sh
+python3 -m unittest discover -s tests/Release -p 'test_*.py'
+```
+
+The deployment tests use isolated directories and stubbed service/HTTP commands to
+exercise activation, code rollback, migration refusal, maintenance failure handling,
+asset retention, and secret permissions. They do not prove live nginx/FPM draining;
+verify the server prerequisites and watch health/HTTP requests on the first rollout.
