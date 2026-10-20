@@ -6,6 +6,7 @@ namespace App\Filament\Admin\Widgets;
 
 use App\Models\PaymentSession;
 use App\Models\WebhookDelivery;
+use App\Support\UserTimezone;
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 
@@ -14,7 +15,8 @@ final class PlatformStats extends StatsOverviewWidget
     protected function getStats(): array
     {
         $query = PaymentSession::withoutGlobalScope('merchant')->where('is_test', false);
-        $today = (clone $query)->where('created_at', '>=', now()->startOfDay());
+        $today = (clone $query)->where('created_at', '>=', UserTimezone::today()->utc())
+            ->where('created_at', '<', UserTimezone::today()->addDay()->utc());
         $week = (clone $query)->where('created_at', '>=', now()->subDays(7));
         $total = (clone $week)->count();
         $success = (clone $week)->where('status', 'SUCCESS')->count();

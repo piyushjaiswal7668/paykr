@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Providers\Filament;
 
 use App\Filament\Admin\Pages\Dashboard;
+use App\Filament\Auth\EditProfile;
 use App\Filament\Auth\Login;
 use App\Http\Middleware\PanelAudit;
 use Filament\Auth\MultiFactor\App\AppAuthentication;
@@ -32,7 +33,8 @@ class AdminPanelProvider extends PanelProvider
             ->id('admin')
             ->path('admin')
             ->login(Login::class)
-            ->profile()
+            ->profile(EditProfile::class)
+            ->renderHook('panels::topbar.end', fn () => view('filament.timezone'))
             ->authGuard('admin')
             ->multiFactorAuthentication([AppAuthentication::make()->recoverable()], isRequired: true)
             ->viteTheme('resources/css/filament/theme.css')

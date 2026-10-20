@@ -1,1 +1,1 @@
-<div class="space-y-4">@foreach($ticket->messages()->orderBy('created_at')->get() as $message)<p>{{ $message->created_at }} — {{ $message->message ?? $message->body }}</p>@endforeach</div>
+<div class="space-y-4">@foreach($ticket->messages()->orderBy('created_at')->get() as $message)<p>{{ \App\Support\UserTimezone::format($message->created_at) }} — {{ $message->message ?? $message->body }}</p>@endforeach</div>

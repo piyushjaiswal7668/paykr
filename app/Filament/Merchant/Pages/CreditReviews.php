@@ -10,6 +10,7 @@ use App\Models\Merchant;
 use App\Models\PaymentObservation;
 use App\Models\PaymentSession;
 use App\Models\User;
+use App\Support\UserTimezone;
 use Filament\Actions\Action;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\Checkbox;
@@ -58,7 +59,7 @@ final class CreditReviews extends Page implements HasTable
                 TextColumn::make('receivingAccount.upi_id')->label('Receiving account'),
                 TextColumn::make('bank_reference_number')->label('Bank reference')->searchable(),
                 TextColumn::make('source')->badge(),
-                TextColumn::make('observed_at')->label('SMS time')->dateTime()->timezone('Asia/Kolkata'),
+                TextColumn::make('observed_at')->label('SMS time')->dateTime(),
                 TextColumn::make('raw_payload.reviewReason')->label('Reason')->wrap(),
             ])->recordActions([
                 Action::make('approve')->label('Review and approve')->modalHeading('Confirm bank credit and order')
@@ -69,7 +70,7 @@ final class CreditReviews extends Page implements HasTable
                             ->options(fn (PaymentObservation $record): array => PaymentSession::where('receiving_account_id', $record->receiving_account_id)
                                 ->where('amount_paise', $record->amount_paise)->where('method', 'UPI')->whereIn('status', ['ACTIVE', 'PROCESSING', 'EXPIRED', 'CANCELLED', 'FAILED'])
                                 ->whereNull('attributed_observation_id')->orderByDesc('created_at')->limit(100)->get()
-                                ->mapWithKeys(fn (PaymentSession $payment): array => [$payment->id => $payment->order_id.' — '.$payment->status->value.' — '.$payment->created_at->format('Y-m-d H:i')])->all()),
+                                ->mapWithKeys(fn (PaymentSession $payment): array => [$payment->id => $payment->order_id.' — '.$payment->status->value.' — '.UserTimezone::format($payment->created_at)])->all()),
                         TextInput::make('reference')->label('Re-enter the 12-digit bank reference')->required()->regex('/^[0-9]{12}$/D'),
                         Textarea::make('note')->label('Review notes')->helperText('Record how you confirmed the bank credit belongs to this order.')->required()->minLength(10)->maxLength(1000),
                         Checkbox::make('reopenConfirmed')->label('If this order has ended, I explicitly authorize reopening it as paid.'),

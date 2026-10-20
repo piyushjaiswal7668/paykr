@@ -33,7 +33,7 @@ class User extends Authenticatable implements FilamentUser, HasAppAuthentication
 
     protected $dateFormat = 'Y-m-d H:i:s.v';
 
-    protected $fillable = ['name', 'email', 'password'];
+    protected $fillable = ['name', 'email', 'password', 'timezone'];
 
     protected $hidden = ['password', 'remember_token', 'two_factor_secret', 'two_factor_recovery_codes'];
 

@@ -6,6 +6,7 @@ namespace App\Filament\Merchant\Pages;
 
 use App\Filament\Support\MerchantPage;
 use App\Models\PaymentSession;
+use App\Support\UserTimezone;
 use Filament\Actions\Action;
 use Filament\Facades\Filament;
 use Illuminate\Support\Facades\Gate;
@@ -33,7 +34,8 @@ final class LiveMonitor extends MerchantPage
     /** @return array<string, int|string> */
     public function stats(): array
     {
-        $today = PaymentSession::where('is_test', false)->where('created_at', '>=', now()->startOfDay());
+        $today = PaymentSession::where('is_test', false)->where('created_at', '>=', UserTimezone::today()->utc())
+            ->where('created_at', '<', UserTimezone::today()->addDay()->utc());
 
         return [
             "Today's volume" => '₹'.number_format((int) (clone $today)->where('status', 'SUCCESS')->sum('amount_paise') / 100, 2),
