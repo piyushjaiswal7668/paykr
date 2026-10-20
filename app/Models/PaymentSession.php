@@ -39,17 +39,19 @@ class PaymentSession extends Model
 
     use HasUuids;
 
+    protected $attributes = ['booking_status' => 'PENDING', 'booking_version' => 0, 'whatsapp_updates_consent' => false];
+
     protected $table = 'payment_sessions';
 
     protected $dateFormat = 'Y-m-d H:i:s.v';
 
-    protected $fillable = ['customer_id', 'receiving_account_id', 'device_id', 'order_id', 'amount_paise', 'currency', 'method', 'status', 'queue_position', 'slot_acquired_at', 'expires_at', 'processing_started_at', 'processing_expires_at', 'completed_at', 'return_url', 'attributed_observation_id', 'idempotency_key', 'verification_grace_expires_at', 'verification_level', 'verification_sources', 'verification_tag', 'metadata', 'is_test', 'merchant_id'];
+    protected $fillable = ['booking_status', 'booking_version', 'whatsapp_phone', 'whatsapp_updates_consent', 'customer_id', 'receiving_account_id', 'device_id', 'order_id', 'amount_paise', 'currency', 'method', 'status', 'queue_position', 'slot_acquired_at', 'expires_at', 'processing_started_at', 'processing_expires_at', 'completed_at', 'return_url', 'attributed_observation_id', 'idempotency_key', 'verification_grace_expires_at', 'verification_level', 'verification_sources', 'verification_tag', 'metadata', 'is_test', 'merchant_id'];
 
     protected $hidden = [];
 
     protected function casts(): array
     {
-        return [
+        return ['booking_version' => 'integer', 'whatsapp_updates_consent' => 'boolean',
             'amount_paise' => 'integer',
             'method' => PaymentMethod::class,
             'status' => PaymentStatus::class,

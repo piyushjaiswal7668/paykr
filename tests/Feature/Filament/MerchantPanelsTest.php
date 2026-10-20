@@ -12,6 +12,7 @@ use App\Filament\Merchant\Pages\CounterDesk;
 use App\Filament\Merchant\Pages\CreditReviews;
 use App\Filament\Merchant\Pages\GmailConnection;
 use App\Filament\Merchant\Pages\LiveMonitor;
+use App\Filament\Merchant\Pages\Notifications;
 use App\Filament\Merchant\Pages\Observers;
 use App\Filament\Merchant\Pages\PaymentMethods;
 use App\Filament\Merchant\Pages\TeamMembers;
@@ -24,6 +25,7 @@ use App\Models\ObserverPairingToken;
 use App\Models\PaymentObservation;
 use App\Models\PaymentSession;
 use App\Models\User;
+use App\Models\WhatsappNotification;
 use Filament\Facades\Filament;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -67,7 +69,7 @@ it('confirms a counter payment through Livewire with an actor and rejects replay
 
 it('enforces the complete merchant page role matrix', function (string $role) {
     $this->merchant->users()->updateExistingPivot($this->user->id, ['role' => $role]);
-    $matrix = ['live-monitor' => ['owner', 'manager', 'cashier', 'developer'], 'transactions' => ['owner', 'manager', 'cashier', 'developer'], 'observers' => ['owner', 'manager', 'cashier', 'developer'], 'counter-desk' => ['owner', 'manager', 'cashier'], 'brand-identity' => ['owner', 'manager'], 'receiving-accounts' => ['owner', 'manager'], 'payment-methods' => ['owner', 'manager'], 'webhooks' => ['owner', 'developer'], 'api-keys' => ['owner', 'developer'], 'payment-simulator' => ['owner', 'developer'], 'android-sms' => ['owner', 'manager', 'developer'], 'gmail-connection' => ['owner', 'manager', 'developer'], 'customers' => ['owner', 'manager'], 'support-tickets' => ['owner', 'manager'], 'team-members' => ['owner']];
+    $matrix = ['notifications' => ['owner', 'manager'], 'live-monitor' => ['owner', 'manager', 'cashier', 'developer'], 'transactions' => ['owner', 'manager', 'cashier', 'developer'], 'observers' => ['owner', 'manager', 'cashier', 'developer'], 'counter-desk' => ['owner', 'manager', 'cashier'], 'brand-identity' => ['owner', 'manager'], 'receiving-accounts' => ['owner', 'manager'], 'payment-methods' => ['owner', 'manager'], 'webhooks' => ['owner', 'developer'], 'api-keys' => ['owner', 'developer'], 'payment-simulator' => ['owner', 'developer'], 'android-sms' => ['owner', 'manager', 'developer'], 'gmail-connection' => ['owner', 'manager', 'developer'], 'customers' => ['owner', 'manager'], 'support-tickets' => ['owner', 'manager'], 'team-members' => ['owner']];
     foreach ($matrix as $page => $roles) {
         $this->get('/merchant/'.$this->merchant->slug.'/'.$page)->assertStatus(in_array($role, $roles, true) ? 200 : 403);
     }
@@ -169,5 +171,27 @@ it('handles empty Android pairing refreshes and starts Gmail authorization', fun
     app(TenantContext::class)->run($this->merchant->id, function () {
         Livewire::test(AndroidSms::class)->call('refreshPairing')->assertSet('result', []);
         Livewire::test(GmailConnection::class)->callAction('connect')->assertRedirect();
+    });
+});
+
+it('configures notifications and manages booking status without changing payment', function () {
+    Filament::setCurrentPanel(Filament::getPanel('merchant'));
+    Filament::setTenant($this->merchant);
+    app(TenantContext::class)->run($this->merchant->id, function () {
+        Livewire::test(Notifications::class)->callAction('settings', [
+            'whatsapp_phone' => '9123456789', 'whatsapp_merchant_enabled' => true, 'whatsapp_customer_enabled' => true, 'workflow_webhooks_enabled' => false,
+        ])->assertHasNoActionErrors();
+        expect($this->merchant->refresh()->whatsapp_merchant_enabled)->toBeTrue();
+        $payment = PaymentSession::factory()->create(['status' => 'SUCCESS']);
+        Livewire::test(Transactions::class)->callTableAction('booking', $payment, ['bookingStatus' => 'CONFIRMED', 'bookingVersion' => 0])->assertHasNoTableActionErrors();
+        expect($payment->refresh()->booking_status)->toBe('CONFIRMED')->and($payment->status->value)->toBe('SUCCESS');
+        $message = WhatsappNotification::first();
+        $command = new PanelCommand($this->user->id, $this->merchant->id, 'notification-retry', $message->id);
+        expect(fn () => app(MerchantOperations::class)->execute($command))->toThrow(ValidationException::class);
+        $message->update(['status' => 'UNKNOWN']);
+        expect(fn () => app(MerchantOperations::class)->execute($command))->toThrow(ValidationException::class);
+        $this->travel(6)->minutes();
+        Livewire::test(Notifications::class)->callTableAction('retry', $message)->assertHasNoTableActionErrors();
+        expect($message->refresh()->status)->toBe('PENDING');
     });
 });

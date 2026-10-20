@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Models;
 
-use App\Domain\Payments\Enums\PaymentStatus;
 use App\Models\Concerns\BelongsToMerchant;
 use Carbon\CarbonImmutable;
 use Database\Factories\WebhookDeliveryFactory;
@@ -14,7 +13,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * @property PaymentStatus $event_type
+ * @property string $event_type
  * @property bool $is_successful
  * @property int $attempt_count
  * @property CarbonImmutable|null $next_retry_at
@@ -41,7 +40,6 @@ class WebhookDelivery extends Model
     protected function casts(): array
     {
         return [
-            'event_type' => PaymentStatus::class,
             'response_status' => 'integer',
             'attempt_count' => 'integer',
             'is_successful' => 'boolean',

@@ -174,7 +174,7 @@ it('does not resurrect a payment cancelled during grace and creates one reconcil
         expect(PaymentObservation::sole()->attribution_status)->toBe(AttributionStatus::LATE_UNMATCHED);
         expect(SupportTicket::count())->toBe(1);
         expect(SupportTicket::sole()->messages()->sole()->message)->toContain('NOT marked paid');
-        expect(WebhookDelivery::sole()->event_type)->toBe(PaymentStatus::CANCELLED);
+        expect(WebhookDelivery::sole()->event_type)->toBe('CANCELLED');
     });
 });
 

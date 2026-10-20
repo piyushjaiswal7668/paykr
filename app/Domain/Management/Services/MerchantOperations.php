@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Domain\Management\Services;
 
 use App\Domain\Management\Data\PanelCommand;
+use App\Domain\Notifications\Services\PaymentNotifications;
 use App\Domain\Payments\Enums\PaymentStatus;
+use App\Domain\Payments\Services\BookingService;
 use App\Domain\Payments\Services\PaymentTimingService;
 use App\Domain\Payments\Services\PaymentTransitionService;
 use App\Domain\Shared\Errors\ErrorCode;
@@ -18,6 +20,7 @@ use App\Models\MerchantCustomerBlock;
 use App\Models\PaymentReceivingAccount;
 use App\Models\PaymentSession;
 use App\Models\SupportTicket;
+use App\Models\WhatsappNotification;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
@@ -31,6 +34,9 @@ final class MerchantOperations
         $this->tenants->run($command->merchantId, fn () => DB::transaction(function () use ($command, $actor): void {
             Merchant::whereKey($command->merchantId)->lockForUpdate()->firstOrFail();
             match ($command->operation) {
+                'notification-settings' => $this->notificationSettings($command),
+                'notification-retry' => $this->retryNotification($command),
+                'booking-update' => app(BookingService::class)->update((string) $command->recordId, $command->data, 'MERCHANT_USER', $command->userId),
                 'counter-confirm', 'counter-decline' => $this->counter($command, $actor),
                 'clear-queue' => $this->clearQueue($actor),
                 'account-create', 'account-activate', 'account-deactivate', 'account-delete' => $this->account($command),
@@ -43,6 +49,27 @@ final class MerchantOperations
             }, 'MERCHANT_OPERATION', $command->recordId ?? $command->merchantId,
                 isset($command->data['reason']) ? ['reason' => $command->data['reason']] : []);
         }, 5));
+    }
+
+    private function notificationSettings(PanelCommand $command): void
+    {
+        $data = Validator::make($command->data, [
+            'whatsapp_merchant_enabled' => ['required', 'boolean'],
+            'whatsapp_customer_enabled' => ['required', 'boolean'],
+            'workflow_webhooks_enabled' => ['required', 'boolean'],
+            'whatsapp_phone' => ['nullable', 'required_if:whatsapp_merchant_enabled,true', 'regex:/^[6-9][0-9]{9}$/D'],
+        ])->validate();
+        Merchant::findOrFail($command->merchantId)->update($data);
+    }
+
+    private function retryNotification(PanelCommand $command): void
+    {
+        $notification = WhatsappNotification::whereKey($command->recordId)->lockForUpdate()->firstOrFail();
+        if (! in_array($notification->status, ['FAILED', 'UNKNOWN'], true) || ($notification->status === 'UNKNOWN' && ($notification->updated_at?->gt(now()->subMinutes(5)) ?? true))) {
+            throw new ValidationException(ErrorCode::INVALID_STATE_TRANSITION);
+        }
+        $notification->update(['status' => 'PENDING', 'attempts' => 0, 'next_attempt_at' => now()]);
+        app(PaymentNotifications::class)->schedule($notification);
     }
 
     private function counter(PanelCommand $command, Actor $actor): void

@@ -26,7 +26,7 @@ class Merchant extends Model implements HasName
 
     protected $dateFormat = 'Y-m-d H:i:s.v';
 
-    protected $fillable = ['business_name', 'slug', 'contact_email', 'contact_phone', 'status', 'webhook_url', 'webhook_secret', 'allowed_origins'];
+    protected $fillable = ['whatsapp_merchant_enabled', 'whatsapp_customer_enabled', 'workflow_webhooks_enabled', 'whatsapp_phone', 'business_name', 'slug', 'contact_email', 'contact_phone', 'status', 'webhook_url', 'webhook_secret', 'allowed_origins'];
 
     protected $hidden = ['webhook_secret', 'legacy_settings'];
 
@@ -37,7 +37,7 @@ class Merchant extends Model implements HasName
 
     protected function casts(): array
     {
-        return ['status' => MerchantStatus::class, 'webhook_secret' => 'encrypted', 'allowed_origins' => 'array', 'legacy_settings' => 'encrypted:array'];
+        return ['whatsapp_merchant_enabled' => 'boolean', 'whatsapp_customer_enabled' => 'boolean', 'workflow_webhooks_enabled' => 'boolean', 'status' => MerchantStatus::class, 'webhook_secret' => 'encrypted', 'allowed_origins' => 'array', 'legacy_settings' => 'encrypted:array'];
     }
 
     /** @return BelongsToMany<User, $this> */

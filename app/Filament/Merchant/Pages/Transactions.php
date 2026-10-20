@@ -7,11 +7,15 @@ namespace App\Filament\Merchant\Pages;
 use App\Filament\Support\MerchantPage;
 use App\Models\PaymentSession;
 use Filament\Actions\Action;
+use Filament\Facades\Filament;
+use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Select;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\On;
 
 final class Transactions extends MerchantPage implements HasTable
@@ -32,8 +36,13 @@ final class Transactions extends MerchantPage implements HasTable
     public function table(Table $table): Table
     {
         return $table->query(PaymentSession::query())->defaultSort('created_at', 'desc')->columns([
-            TextColumn::make('order_id')->searchable(), TextColumn::make('id')->label('Payment ID')->searchable()->toggleable(isToggledHiddenByDefault: true), TextColumn::make('amount_paise')->label('Amount')->money('INR', divideBy: 100), TextColumn::make('method')->badge(), TextColumn::make('status')->badge(), TextColumn::make('verification_tag'), TextColumn::make('verification_sources')->listWithLineBreaks(), TextColumn::make('created_at')->dateTime(), TextColumn::make('completed_at')->dateTime(),
+            TextColumn::make('order_id')->searchable(), TextColumn::make('id')->label('Payment ID')->searchable()->toggleable(isToggledHiddenByDefault: true), TextColumn::make('amount_paise')->label('Amount')->money('INR', divideBy: 100), TextColumn::make('method')->badge(), TextColumn::make('status')->badge(), TextColumn::make('booking_status')->badge(), TextColumn::make('verification_tag'), TextColumn::make('verification_sources')->listWithLineBreaks(), TextColumn::make('created_at')->dateTime(), TextColumn::make('completed_at')->dateTime(),
         ])->filters([SelectFilter::make('status')->options(array_combine(['INITIATED', 'QUEUED', 'ACTIVE', 'PROCESSING', 'SUCCESS', 'FAILED', 'EXPIRED', 'CANCELLED'], ['INITIATED', 'QUEUED', 'ACTIVE', 'PROCESSING', 'SUCCESS', 'FAILED', 'EXPIRED', 'CANCELLED'])), SelectFilter::make('method')->options(['UPI' => 'UPI', 'COD' => 'COD', 'CASH_COUNTER' => 'Cash counter', 'CARD_COUNTER' => 'Card counter'])])->recordActions([
+            Action::make('booking')->label('Update booking')->visible(fn () => Gate::allows('configure', Filament::getTenant()))
+                ->fillForm(fn (PaymentSession $record) => ['bookingVersion' => $record->booking_version])
+                ->schema([Select::make('bookingStatus')->options(['CONFIRMED' => 'Confirmed', 'REJECTED' => 'Rejected', 'CANCELLED' => 'Cancelled'])->required(), Hidden::make('bookingVersion')])
+                ->modalDescription('Booking status is separate from payment. Cancelling or rejecting a booking does not issue a refund. Confirmation requires a successful payment/order.')
+                ->action(fn (PaymentSession $record, array $data) => $this->operate('booking-update', $record->id, $data)),
             Action::make('detail')->modalHeading('Payment history')->modalSubmitAction(false)->modalContent(fn (PaymentSession $record) => view('filament.merchant.payment-detail', ['payment' => $record])),
         ]);
     }

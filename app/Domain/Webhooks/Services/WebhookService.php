@@ -55,7 +55,7 @@ final class WebhookService
                 'metadata' => $payment->metadata === [] ? (object) [] : ($payment->metadata ?? (object) []),
             ];
             $delivery = WebhookDelivery::create([
-                'merchant_id' => $payment->merchant_id, 'payment_id' => $payment->id, 'event_type' => $payment->status,
+                'merchant_id' => $payment->merchant_id, 'payment_id' => $payment->id, 'event_type' => $payment->status->value,
                 'payload' => json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_LINE_TERMINATORS),
                 'endpoint_url' => $merchant->webhook_url, 'attempt_count' => 0, 'is_successful' => false, 'next_retry_at' => now(),
             ]);
@@ -63,6 +63,21 @@ final class WebhookService
 
             return $delivery;
         });
+    }
+
+    /** Called while the payment row is locked, once per workflow event.
+     * @param  array<string, mixed>  $payload
+     */
+    public function recordWorkflow(PaymentSession $payment, string $event, array $payload): void
+    {
+        $merchant = Merchant::findOrFail($payment->merchant_id);
+        if (! $merchant->workflow_webhooks_enabled || ! $merchant->webhook_url || WebhookDelivery::where('payment_id', $payment->id)->where('event_type', $event)->exists()) {
+            return;
+        }
+        $delivery = WebhookDelivery::create(['merchant_id' => $payment->merchant_id, 'payment_id' => $payment->id, 'event_type' => $event,
+            'payload' => json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            'endpoint_url' => $merchant->webhook_url, 'attempt_count' => 0, 'is_successful' => false, 'next_retry_at' => now()]);
+        $this->schedule($delivery);
     }
 
     public function deliver(string $deliveryId): void
@@ -86,7 +101,7 @@ final class WebhookService
                 }
                 $response = Http::withOptions($options)->timeout(10)->connectTimeout(5)
                     ->withHeaders([
-                        'X-Gateway-Event' => $delivery->event_type->value,
+                        'X-Gateway-Event' => $delivery->event_type,
                         'X-Gateway-Signature' => 'sha256='.hash_hmac('sha256', $delivery->payload, $merchant->webhook_secret),
                         'X-Gateway-Delivery-Id' => $delivery->id,
                         'X-Gateway-Timestamp' => (string) now()->getTimestampMs(),

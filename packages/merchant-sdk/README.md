@@ -29,3 +29,20 @@ Build from the repository root before packing: `npm run build`, then
 `npm pack ./packages/merchant-sdk`. The ESM browser export is generated from the same
 reviewed source as the hosted SDK. The tarball is ready for private installation/release;
 no package registry publication is performed automatically.
+
+For delayed payment confirmation, call `await paykr.recheckPayment(paymentId)` on
+your server. If `canRequestReview` is true, an explicit customer review request can
+call `await paykr.requestPaymentReview(paymentId, { reference, note })`. Both use the
+original payment ID. `verificationStatus: "AWAITING_EVIDENCE"` is not payment success;
+a customer-provided reference is an unverified claim. See
+[the delayed confirmation API guide](../../docs/INTEGRATION.md#delayed-confirmation-recheck-and-request-review).
+
+Booking updates: `client.updateBooking(paymentId, "CONFIRMED", bookingVersion)`
+(the current version comes from `getPayment`). Booking state is separate from
+payment and never issues refunds. Other decisions are `REJECTED` and `CANCELLED`.
+
+Customer WhatsApp consent: pass `whatsappUpdatesConsent: true` to `createPayment`
+only after explicit customer consent, or call
+`client.setWhatsappUpdatesConsent(paymentId, enabled)` from your server.
+Enable merchant notification preferences in the Paykr dashboard. See
+[notification setup and signed website events](../../docs/INTEGRATION.md#whatsapp-notifications-and-website-booking-updates).
