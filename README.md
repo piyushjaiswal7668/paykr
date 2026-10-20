@@ -173,3 +173,20 @@ backs up the installation, activates the release, and checks HTTP and payment-cl
 Default `graceful` mode keeps HTTP live and refuses pending migrations or sidecar changes;
 select `maintenance` explicitly for those releases after reviewing the deployment guide. Deployments are manual; pushes do not update
 production. The existing **Prepare release** workflow only publishes static assets.
+
+### Dashboard timezone
+
+Admin and merchant users can open their avatar menu → **Profile**, choose a
+**Display timezone** (for example, `Asia/Kolkata`), and save. The top bar shows the
+selected zone. Each user has their own preference, initially `UTC`; a merchant
+team member's preference applies across their merchant memberships.
+
+Dashboard dates, SMS review times, evidence timestamps, and “today” totals follow
+this selection, including daylight saving changes. Database timestamps, payment
+deadlines, API/webhook timestamps, and raw diagnostic payloads remain UTC.
+Automatic IP-based detection is not enabled. To verify the display, compare the
+same payment in `UTC` and `Asia/Kolkata`: the latter is 5 hours 30 minutes ahead.
+
+This feature adds a database migration. Existing installations must deploy it
+using the **maintenance** deployment mode; graceful deployment refuses pending
+migrations. No historical timestamp conversion is required.

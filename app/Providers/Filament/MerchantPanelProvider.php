@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Providers\Filament;
 
+use App\Filament\Auth\EditProfile;
 use App\Filament\Auth\Login;
 use App\Filament\Merchant\Pages\Dashboard;
 use App\Http\Middleware\PanelAudit;
@@ -36,7 +37,8 @@ class MerchantPanelProvider extends PanelProvider
             ->renderHook('panels::body.end', fn () => view('filament.merchant.realtime'))
             ->login(Login::class)
             ->passwordReset()
-            ->profile()
+            ->profile(EditProfile::class)
+            ->renderHook('panels::topbar.end', fn () => view('filament.timezone'))
             ->tenant(Merchant::class, slugAttribute: 'slug', ownershipRelationship: 'merchant')
             ->tenantMiddleware([SetMerchantContext::class], isPersistent: true)
             ->multiFactorAuthentication([AppAuthentication::make()->recoverable()])

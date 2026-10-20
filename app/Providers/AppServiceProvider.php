@@ -23,6 +23,8 @@ use App\Domain\Verification\Events\PaymentLateDetected;
 use App\Domain\Verification\Events\PaymentLevel1Verified;
 use App\Domain\Verification\Events\PaymentVerificationUpgraded;
 use App\Support\ProductionSecrets;
+use App\Support\UserTimezone;
+use Filament\Support\Facades\FilamentTimezone;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
@@ -40,6 +42,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         ProductionSecrets::assertSafe();
+        FilamentTimezone::set(fn (): string => UserTimezone::current());
         RateLimiter::for('merchant-api', function (Request $request) {
             $key = $request->header('X-Api-Key') ?? $request->header('X-Merchant-Key') ?? $request->bearerToken() ?? $request->header('X-Merchant-Id', '');
 
