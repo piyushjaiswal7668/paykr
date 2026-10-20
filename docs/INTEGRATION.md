@@ -138,7 +138,8 @@ Embedded SDK checkout reports cancellation to the parent page. Configure the SDK
 ### UPI payment options
 
 Checkout displays the QR and a copyable receiving UPI ID with the recipient name and
-exact amount. Customers can scan from another device or pay the copied ID manually;
+exact amount. Tap the QR to enlarge it; the enlarged view closes when the payment is
+no longer active. Customers can scan from another device or pay the copied ID manually;
 checkout does not launch UPI apps through payment links. If clipboard access is blocked,
 the read-only UPI field can be selected and copied manually.
 

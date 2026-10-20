@@ -387,6 +387,9 @@ function App() {
         state.status === "ACTIVE" &&
         state.method === "UPI" &&
         remaining > 0;
+    useEffect(() => {
+        if (sheet === "qr" && (!qr || !paymentDone)) setSheet("");
+    }, [sheet, qr, paymentDone]);
     const upiDetails = new URLSearchParams(state.upiUri?.split("?")[1] || "");
     const upiId = upiDetails.get("pa") || "";
     const payeeName = upiDetails.get("pn") || "";
@@ -749,11 +752,18 @@ function App() {
                                         </div>
                                         <div className="qr-card">
                                             {qr ? (
-                                                <img
-                                                    className="qr"
-                                                    src={qr}
-                                                    alt="UPI payment QR code"
-                                                />
+                                                <button
+                                                    className="qr-expand"
+                                                    aria-label="Enlarge payment QR code"
+                                                    onClick={() => setSheet("qr")}
+                                                >
+                                                    <img
+                                                        className="qr"
+                                                        src={qr}
+                                                        alt="UPI payment QR code"
+                                                    />
+                                                    <span>Tap to enlarge</span>
+                                                </button>
                                             ) : (
                                                 <div className="qr placeholder">
                                                     {state.customer
@@ -884,7 +894,7 @@ function App() {
                     <section
                         role="dialog"
                         aria-modal="true"
-                        aria-label={authVisible ? "Sign in" : sheet}
+                        aria-label={authVisible ? "Sign in" : sheet === "qr" ? "Payment QR code" : sheet}
                         className="sheet"
                     >
                         <button
@@ -1025,6 +1035,14 @@ function App() {
                                     )}
                                 </form>
                             </>
+                        ) : sheet === "qr" ? (
+                            qr && paymentDone ? <>
+                                <h2>Scan to pay {price}</h2>
+                                <img className="qr-large" src={qr} alt="Enlarged UPI payment QR code" />
+                                <p>{payeeName} · {upiId}</p>
+                                <p>Time remaining: {time}</p>
+                                <p>Scan using another phone. If you have already paid, close this view and wait for confirmation.</p>
+                            </> : null
                         ) : sheet === "cancel" ? (
                             <>
                                 <h2>Cancel this payment?</h2>
