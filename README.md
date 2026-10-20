@@ -169,6 +169,7 @@ Historical migration records are in [laravel-migration](laravel-migration/00-REA
 
 After the [one-time production setup](docs/PRODUCTION-DEPLOYMENT.md), run
 **GitHub Actions → Deploy production → main**. It tests and builds the selected commit,
-backs up the existing installation, applies pending migrations, activates the release,
-and checks HTTP and payment-clock health. Deployments are manual; pushes do not update
+backs up the installation, activates the release, and checks HTTP and payment-clock health.
+Default `graceful` mode keeps HTTP live and refuses pending migrations or sidecar changes;
+select `maintenance` explicitly for those releases after reviewing the deployment guide. Deployments are manual; pushes do not update
 production. The existing **Prepare release** workflow only publishes static assets.

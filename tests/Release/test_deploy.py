@@ -53,7 +53,7 @@ class DeployTest(unittest.TestCase):
 
     def source(self, root):
         source = root / 'source'
-        for directory in (*assets.ROOTS, 'storage', 'bootstrap/cache', 'deploy', 'scripts', 'services/whatsapp-sidecar'):
+        for directory in (*assets.ROOTS, 'public/build/assets', 'storage', 'bootstrap/cache', 'deploy', 'scripts', 'services/whatsapp-sidecar'):
             (source / directory).mkdir(parents=True, exist_ok=True)
         for name in ('public/build/manifest.json', 'public/sdk/integrity.json', 'public/sdk/paykr.min.js'):
             (source / name).write_text('fixture')
@@ -62,15 +62,20 @@ class DeployTest(unittest.TestCase):
         return source
 
     def test_activation_and_failure_recovery(self):
-        for fail, pending in ((False, '0'), (True, '0'), (True, '1')):
-            with self.subTest(fail=fail, pending=pending), tempfile.TemporaryDirectory() as temporary:
+        for fail, pending, mode, changed_sidecar in ((False, '0', 'graceful', False), (True, '0', 'graceful', False), (False, '1', 'graceful', False), (False, '0', 'graceful', True), (False, '0', 'maintenance', False), (True, '0', 'maintenance', False), (True, '1', 'maintenance', False)):
+            with self.subTest(fail=fail, pending=pending, mode=mode, changed_sidecar=changed_sidecar), tempfile.TemporaryDirectory() as temporary:
                 root = Path(temporary)
                 source = self.source(root)
+                if changed_sidecar:
+                    (source / 'services/whatsapp-sidecar/index.js').write_text('changed sender')
                 sha = 'a' * 40
                 incoming = root / 'incoming' / (sha + '-123-1')
                 incoming.mkdir(parents=True)
                 old = root / 'releases/old'
                 old.mkdir(parents=True)
+                (old / 'services/whatsapp-sidecar').mkdir(parents=True)
+                (old / 'public/build/assets').mkdir(parents=True)
+                (old / 'public/build/assets/old-hash.js').write_text('old asset')
                 (root / 'current').symlink_to(old)
                 for name in ('storage', 'sidecar-data'):
                     (root / 'shared' / name).mkdir(parents=True)
@@ -94,6 +99,7 @@ root=pathlib.Path(os.environ['PAYKR_ROOT'])
 with (root/'commands').open('a') as f: f.write(name+' '+' '.join(args)+'\\n')
 if name=='sudo':
     args=args[1:] if args[0]=='-n' else args
+    if args[0]=='-l': sys.exit(0)
     if args[0]=='chgrp': sys.exit(0)
     os.execvp(args[0],args)
 if name=='sha256sum':
@@ -117,16 +123,28 @@ if name=='curl':
                 mv = bin_dir / 'mv'
                 mv.write_text('#!/usr/bin/env python3\nimport os,sys\na=[x for x in sys.argv[1:] if not x.startswith("-")]\nos.rename(a[0],a[1])\n')
                 mv.chmod(0o755)
-                result = subprocess.run(['bash', str(ROOT / 'deploy/oracle-deploy.sh'), sha, str(incoming)],
+                result = subprocess.run(['bash', str(ROOT / 'deploy/oracle-deploy.sh'), sha, str(incoming), mode],
                     env={**os.environ, 'PAYKR_ROOT': str(root), 'PATH': str(bin_dir)+':'+os.environ['PATH'],
                          'FAIL': str(int(fail)), 'PENDING': pending}, capture_output=True, text=True)
                 commands = (root / 'commands').read_text()
-                self.assertEqual(result.returncode == 0, not fail, result.stdout + result.stderr)
+                rejected = mode == 'graceful' and (pending != '0' or changed_sidecar)
+                self.assertEqual(result.returncode == 0, not fail and not rejected, result.stdout + result.stderr)
                 self.assertEqual((root / 'shared/.env').read_text(), 'APP_KEY=preserve-me')
                 self.assertEqual((root / 'shared/.env').stat().st_mode & 0o777, 0o600)
-                self.assertTrue((root / 'backups' / incoming.name / 'database.sql.gz').exists())
-                self.assertEqual((root / 'current').resolve() == old.resolve(), fail and pending == '0')
+                self.assertEqual((root / 'backups' / incoming.name / 'database.sql.gz').exists(), not rejected)
+                self.assertEqual((root / 'current').resolve() == old.resolve(), rejected or (fail and pending == '0'))
                 self.assertNotIn('db:seed', commands)
-                if fail and pending == '1':
+                if mode == 'graceful':
+                    self.assertNotIn('artisan down', commands)
+                    self.assertNotIn('artisan up', commands)
+                    self.assertNotIn('systemctl stop', commands)
+                    self.assertNotIn('restart paykr@whatsapp-sidecar', commands)
+                    self.assertNotIn('artisan migrate', commands)
+                    if not rejected:
+                        self.assertIn('systemctl reload php8.3-fpm', commands)
+                        self.assertTrue((root / 'releases' / incoming.name / 'public/build/assets/old-hash.js').exists())
+                else:
+                    self.assertNotIn('systemctl stop php8.3-fpm', commands)
+                if fail and pending == '1' and mode == 'maintenance':
                     self.assertIn('Maintenance remains ON', result.stderr)
                     self.assertTrue(commands.rfind('artisan down') > commands.rfind('artisan up'))

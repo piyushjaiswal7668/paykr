@@ -5,10 +5,14 @@ umask 0077
 sha=${1:?Full commit SHA required}
 incoming=${2:?Upload directory required}
 root=${PAYKR_ROOT:-/srv/paykr}
+mode=${3:-graceful}
+[[ $mode == graceful || $mode == maintenance ]] || exit 2
 [[ $sha =~ ^[0-9a-f]{40}$ ]] || exit 2
 [[ $incoming == "$root/incoming/$sha-"* && $incoming != *..* ]] || exit 2
 exec 9>"$root/deploy.lock"
 flock -n 9 || { echo 'Another deployment is running'; exit 1; }
+# Fail before activation if the deploy user's reload permission has not been installed.
+sudo -n -l /usr/bin/systemctl reload php8.3-fpm >/dev/null
 cd "$incoming"
 sha256sum --strict --check SHA256SUMS
 previous=$(readlink -f "$root/current")
@@ -27,11 +31,21 @@ chmod -R a+rX "$release"
 sudo -n chgrp -R www-data bootstrap/cache
 sudo -n chmod -R g+rwX bootstrap/cache
 sudo -n find bootstrap/cache -type d -exec chmod g+s {} +
+# Compile views into this release, never clear views used by live requests.
+export VIEW_COMPILED_PATH="$release/bootstrap/cache/views"
+mkdir -p "$VIEW_COMPILED_PATH"
+sudo -n chgrp www-data "$VIEW_COMPILED_PATH"
+chmod 2770 "$VIEW_COMPILED_PATH"
 COMPOSER_MAX_PARALLEL_HTTP=2 composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction
 composer check-platform-reqs --no-dev
 services=(paykr@horizon paykr@clock paykr@reverb paykr@scheduler)
 if systemctl is-enabled --quiet paykr@whatsapp-sidecar; then
-    services+=(paykr@whatsapp-sidecar)
+    if [[ $mode == maintenance ]]; then
+        services+=(paykr@whatsapp-sidecar)
+    elif ! diff -qr --exclude=node_modules --exclude=.env --exclude=data "$previous/services/whatsapp-sidecar" services/whatsapp-sidecar; then
+        echo 'Sidecar code changed: use a scheduled maintenance deployment to restart it.' >&2
+        exit 2
+    fi
     npm ci --prefix services/whatsapp-sidecar --omit=dev --no-audit --no-fund
 fi
 # Let FPM and service users read newly installed dependencies too.
@@ -48,9 +62,29 @@ php artisan config:cache
 php artisan route:cache
 pending=$(php deploy/pending-migrations.php)
 [[ $pending =~ ^[0-9]+$ ]] || exit 2
+if [[ $mode == graceful && $pending != 0 ]]; then
+    echo 'Pending migrations: graceful deployment stopped without touching live services. Review schema compatibility and schedule maintenance mode.' >&2
+    exit 2
+fi
+# Retain hashed assets for pages opened before the symlink switch.
+if [[ -d "$previous/public/build/assets" ]]; then
+    cp -Rn "$previous/public/build/assets/." public/build/assets/
+fi
+php artisan view:cache
 schema_started=0
+activated=0
 maintenance=0
-restart_services() { sudo -n systemctl restart php8.3-fpm "${services[@]}"; }
+restart_services() {
+    if [[ $mode == graceful ]]; then
+        sudo -n systemctl reload php8.3-fpm
+        # systemd sends SIGTERM and waits for workers to finish (TimeoutStopSec=100).
+        # Restart sequentially so the clock stays available while Horizon drains.
+        for service in "${services[@]}"; do sudo -n systemctl restart "$service"; done
+    else
+        sudo -n systemctl reload php8.3-fpm
+        sudo -n systemctl restart "${services[@]}"
+    fi
+}
 activate() {
     ln -s "$1" "$root/current.deploy-next" &&
     mv -Tf "$root/current.deploy-next" "$root/current"
@@ -59,7 +93,13 @@ on_error() {
     code=$?
     trap - ERR
     set +e
-    if (( maintenance )); then
+    if [[ $mode == graceful ]] && (( activated )); then
+        echo 'DEPLOY FAILED. Restoring previous code while HTTP remains available.' >&2
+        rm -f "$root/current.deploy-next"
+        if activate "$previous"; then
+            restart_services || echo 'Service recovery failed; inspect systemd immediately.' >&2
+        fi
+    elif (( maintenance )); then
         if (( schema_started )); then
             sudo -n systemctl stop "${services[@]}"
             echo 'DEPLOY FAILED after migrations began. Maintenance remains ON. Inspect logs; no automatic database restore or code rollback.' >&2
@@ -68,7 +108,6 @@ on_error() {
             rm -f "$root/current.deploy-next"
             if activate "$previous"; then
                 cd "$previous"
-                php artisan view:clear
                 if restart_services; then php artisan up; fi
             fi
         fi
@@ -77,28 +116,40 @@ on_error() {
     exit "$code"
 }
 trap on_error ERR
-php artisan down --retry=30
-maintenance=1
-sudo -n systemctl stop php8.3-fpm "${services[@]}"
+if [[ $mode == maintenance ]]; then
+    php artisan down --retry=30
+    maintenance=1
+    # Keep FPM running to return Laravel's 503 + Retry-After instead of nginx 502.
+    sudo -n systemctl stop "${services[@]}"
+fi
 backup="$root/backups/$(basename "$incoming")"
 mkdir -p "$backup"
 # This installation uses the local root socket and paykr_production database.
 sudo -n mysqldump --single-transaction --quick --no-tablespaces --routines --triggers --events paykr_production | gzip > "$backup/database.sql.gz"
-sudo -n tar -czf - -C "$root/shared" --exclude=storage/framework/cache --exclude=storage/framework/views --exclude=storage/logs .env storage sidecar-data > "$backup/shared.tar.gz"
+if [[ $mode == maintenance ]]; then
+    sudo -n tar -czf - -C "$root/shared" --exclude=storage/framework/cache --exclude=storage/framework/views --exclude=storage/logs .env storage sidecar-data > "$backup/shared.tar.gz"
+else
+    # Live mutable files cannot form a consistent archive. Back up configuration;
+    # full storage/sidecar backups belong to scheduled maintenance/snapshot backups.
+    sudo -n tar -czf - -C "$root/shared" .env > "$backup/config.tar.gz"
+fi
 if (( pending > 0 )); then
     schema_started=1
     php artisan migrate --force
 fi
-php artisan view:cache
-sudo -n chgrp -R www-data bootstrap/cache "$root/shared/storage"
+sudo -n chgrp -R www-data bootstrap/cache
 sudo -n chmod -R g+rwX bootstrap/cache
-sudo -n find "$root/shared/storage" -type d -exec chmod 2770 {} +
-sudo -n find "$root/shared/storage" -type f -exec chmod 660 {} +
+if [[ $mode == maintenance ]]; then
+    sudo -n chgrp -R www-data "$root/shared/storage"
+    sudo -n find "$root/shared/storage" -type d -exec chmod 2770 {} +
+    sudo -n find "$root/shared/storage" -type f -exec chmod 660 {} +
+fi
 # Caches can contain secrets; never leave them world-readable.
 sudo -n find bootstrap/cache -type f -exec chmod 660 {} +
 activate "$release"
+activated=1
 restart_services
-php artisan up
+if (( maintenance )); then php artisan up; fi
 # On failure, close HTTP access again before the failure handler runs.
 healthy=0
 for attempt in {1..12}; do
@@ -112,7 +163,7 @@ for attempt in {1..12}; do
     sleep 5
 done
 if (( ! healthy )); then
-    php artisan down --retry=30
+    if (( maintenance )); then php artisan down --retry=30; fi
     false
 fi
 maintenance=0
