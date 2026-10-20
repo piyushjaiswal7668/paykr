@@ -10,6 +10,7 @@ ambiguous credits require review. Open-source software does not remove hosting, 
 provider or operational costs. Validate your deployment before accepting customer payments.
 
 - [Connect your website or app](docs/INTEGRATION.md)
+- [WhatsApp alerts and website booking notifications](docs/INTEGRATION.md#whatsapp-notifications-and-website-booking-updates)
 - [Deploy and run workers](deploy/README.md)
 - [Android observer source and build](android-observer/README.md)
 - [Optional WhatsApp / Messages services](services/README.md)

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Payments\Services;
 
 use App\Domain\Customers\Enums\CustomerStatus;
+use App\Domain\Notifications\Services\PaymentNotifications;
 use App\Domain\Payments\Enums\PaymentMethod;
 use App\Domain\Payments\Enums\PaymentStatus;
 use App\Domain\Payments\Events\PaymentCancelled;
@@ -133,6 +134,13 @@ final class PaymentTransitionService
                 }
             }
             $payment->save();
+            app(PaymentNotifications::class)->record($payment, match ($target) {
+                PaymentStatus::ACTIVE, PaymentStatus::QUEUED => 'ORDER_RECEIVED',
+                PaymentStatus::PROCESSING => 'PAYMENT_VERIFYING',
+                PaymentStatus::SUCCESS => 'PAYMENT_CONFIRMED',
+                PaymentStatus::CANCELLED => 'PAYMENT_CANCELLED',
+                default => 'PAYMENT_DELAYED',
+            });
             if ($target->isTerminal()) {
                 $this->webhooks->recordTerminal($payment->id);
             }

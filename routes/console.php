@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Domain\Notifications\Services\PaymentNotifications;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -19,3 +20,5 @@ Schedule::call(function (): void {
     DB::table('observer_request_receipts')->where('expires_at', '<=', now())->delete();
     DB::table('gmail_oauth_states')->where('expires_at', '<=', now())->delete();
 })->hourly()->name('prune-observer-security-receipts')->withoutOverlapping();
+
+Schedule::call(fn () => app(PaymentNotifications::class)->recover())->everyMinute()->name('recover-whatsapp-notifications')->withoutOverlapping();

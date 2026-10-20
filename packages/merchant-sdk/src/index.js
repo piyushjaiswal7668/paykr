@@ -68,6 +68,29 @@ export class PaykrPaymentClient {
             "/api/v1/payments/" + encodeURIComponent(paymentId),
         );
     }
+    async recheckPayment(paymentId) {
+        return this.request(`/api/v1/payments/${encodeURIComponent(paymentId)}/recheck`, {
+            method: "POST",
+        });
+    }
+    async requestPaymentReview(paymentId, details = {}) {
+        return this.request(`/api/v1/payments/${encodeURIComponent(paymentId)}/request-review`, {
+            method: "POST",
+            body: JSON.stringify(details),
+        });
+    }
+    async updateBooking(paymentId, bookingStatus, bookingVersion) {
+        return this.request(`/api/v1/payments/${encodeURIComponent(paymentId)}/booking-status`, {
+            method: "POST",
+            body: JSON.stringify({ bookingStatus, bookingVersion }),
+        });
+    }
+    async setWhatsappUpdatesConsent(paymentId, enabled) {
+        return this.request(`/api/v1/payments/${encodeURIComponent(paymentId)}/notification-preferences`, {
+            method: "POST",
+            body: JSON.stringify({ enabled }),
+        });
+    }
     verifyWebhook(rawBody, signature, customSecret = null) {
         const secret = customSecret || this.webhookSecret;
         if (!secret) throw new Error("Webhook secret is not configured.");

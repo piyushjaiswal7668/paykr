@@ -148,3 +148,140 @@ window; it does not approve payment. Only verified evidence or authorized mercha
 review can confirm receipt. Existing timeout and late-credit review rules still apply.
 Manual payments without an order reference may require merchant review when attribution
 is ambiguous; never fulfil an order based on the customer's button click.
+
+### Delayed confirmation: recheck and request review
+
+Merchant backends can call these endpoints with their **secret** API key:
+
+- `POST /api/v1/payments/{paymentId}/recheck`
+- `POST /api/v1/payments/{paymentId}/request-review`
+
+Both return HTTP 200 on a successful check. `status` remains the actual payment state;
+`verificationStatus` describes confirmation progress. For example, a payment whose
+30-second processing window ended without bank evidence can return:
+
+```json
+{
+  "paymentId": "original-payment-id",
+  "orderId": "original-booking-id",
+  "status": "FAILED",
+  "verificationStatus": "AWAITING_EVIDENCE",
+  "canRequestReview": true,
+  "reviewId": null,
+  "reviewStatus": null,
+  "message": "Awaiting bank evidence. If you already paid, do not pay again."
+}
+```
+
+Display “Confirmation delayed” for this result, not a claim that the bank rejected the
+transfer. Do not fulfil the order or ask the customer to pay again based on this result.
+The merchant website must authenticate the customer and check ownership of the booking
+before forwarding either request with its secret key.
+
+With the updated server SDK:
+
+```js
+const result = await paykr.recheckPayment(order.paykrPaymentId);
+// If result.canRequestReview is true, offer an explicit “Request payment review” button.
+// After the customer selects that button:
+const review = await paykr.requestPaymentReview(order.paykrPaymentId, {
+  reference: customerSuppliedUtr, // optional, at most 100 characters; NOT verified evidence
+  note: customerExplanation,    // optional, at most 2000 characters
+});
+```
+
+The checkout customer equivalents are `POST /api/v1/checkout/{id}/recheck` and
+`POST /api/v1/checkout/{id}/request-review`. They require the authenticated payment
+owner's customer session plus the checkout device headers (live sessions enforce device
+proof). Merchant publishable keys cannot call the merchant-backend endpoints.
+
+| verificationStatus | Meaning |
+| --- | --- |
+| `AWAITING_EVIDENCE` | No validated evidence is linked yet; a review can be requested. |
+| `VERIFYING` | Linked evidence is still being verified; wait and recheck. |
+| `REVIEW_REQUIRED` | Evidence is linked to a closed payment; merchant approval is required. |
+| `REVIEW_REQUESTED` | An existing or new merchant support ticket is returned; inspect `reviewStatus` for its OPEN/IN_PROGRESS/RESOLVED/CLOSED state. |
+| `CONFIRMED` | Payment status is SUCCESS. Use the usual server verification/fulfilment rules. |
+
+Review creation rechecks eligibility atomically and returns the existing ticket on repeat
+requests. If confirmation has completed, it returns CONFIRMED without creating a ticket.
+While evidence is VERIFYING it does not create a review. Merchant requests appear in
+**Support Tickets**; approving a late credit remains a separate **Credit Reviews** action
+with explicit confirmation to reopen a closed order. Resolving a support ticket does not
+mark the payment paid.
+
+Rechecks apply existing expiry/grace rules and may finalize already validated linked
+evidence. They do not query a bank API, resubmit SMS, guess matches for unassigned credits,
+restart a timer, allocate a new payment slot, or create another booking. Both actions are
+rate-limited to 10 requests per minute under Laravel's route throttle, in addition to
+existing merchant limits; clients must respect HTTP 429 and Retry-After. New/queued,
+non-UPI, and customer-less payments are not eligible (HTTP 400).
+
+## WhatsApp notifications and website booking updates
+
+Paykr can send WhatsApp updates to both the merchant and the customer, while your website receives signed webhook events. You do not need a second WhatsApp integration in your website. All three switches are **off by default**.
+
+1. The platform administrator connects the WhatsApp sender in **Admin → WhatsApp Sender**. Keep its sidecar, the default queue worker, and scheduler running.
+2. A merchant owner/manager opens **Operations → Notifications → Settings**, enters their ten-digit Indian WhatsApp number, and enables merchant alerts and/or customer alerts. Messages use the platform sender and identify the merchant and order.
+3. Configure the website endpoint and signing secret under **Developer → Webhooks**. Update your receiver to handle the events below, then enable **Send workflow events to website** in Notifications settings.
+4. Obtain explicit customer permission with an unchecked checkbox, for example: “Send payment and booking updates to my WhatsApp number through Paykr.” Store the consent in your own order record. Your server can then set `whatsappUpdatesConsent: true` when creating the payment. This option requires a secret API key and an associated customer; do not put the secret key in the browser.
+
+```js
+const payment = await client.createPayment({
+    orderId: order.id,
+    amount: order.total, // Read the amount from your server database.
+    customer: { name: order.name, mobileNumber: order.phone },
+    whatsappUpdatesConsent: order.whatsappConsent === true,
+    returnUrl: `${storeUrl}/orders/${order.id}`,
+});
+```
+
+For an existing payment, your authenticated server can call:
+
+```js
+await client.setWhatsappUpdatesConsent(paymentId, true); // Only after obtaining consent.
+await client.setWhatsappUpdatesConsent(paymentId, false); // Customer opts out.
+```
+
+This calls `POST /api/v1/payments/{paymentId}/notification-preferences` with `{ "enabled": true|false }`. Customers can also call the checkout equivalent with their authenticated Paykr session. Consent is tied to that payment's phone number; changing the bound customer does not transfer consent. Already delivered messages cannot be recalled. New opt-in does not replay past events.
+
+### Merchant verification and booking decisions
+
+The merchant receives order/payment alerts with a link into their authenticated dashboard. For delayed payment evidence, use **Credit Reviews** to inspect the bank evidence and explicitly approve it; expired/cancelled payments require confirmation to reopen. A review request or customer-supplied UTR is not proof of payment. Support tickets alone do not mark an order paid.
+
+After checking availability, the merchant can use **Transactions → Update booking**, or the website's authenticated backend can call:
+
+```js
+const payment = await client.getPayment(paymentId);
+await client.updateBooking(paymentId, "CONFIRMED", payment.bookingVersion);
+```
+
+This calls `POST /api/v1/payments/{paymentId}/booking-status` with `bookingStatus` and `bookingVersion`. Allowed transitions are `PENDING → CONFIRMED|REJECTED|CANCELLED` and `CONFIRMED → CANCELLED`. Confirmation requires payment status `SUCCESS`; for COD, SUCCESS means the order was placed and cash is still due. Repeating the same state is idempotent. A stale version with a different state is rejected; fetch the current payment and show it to the operator before retrying. Rejection/cancellation never issues a refund or changes the payment result.
+
+### Events delivered to your website
+
+Existing terminal events (`SUCCESS`, `FAILED`, `EXPIRED`, `CANCELLED`) keep their existing format. Opting into workflow events adds:
+
+| Event | Meaning |
+| --- | --- |
+| `ORDER_RECEIVED` | Payment first becomes active or queued; an abandoned INITIATED checkout does not alert the merchant. |
+| `PAYMENT_VERIFYING` | Customer submitted payment for checking. |
+| `PAYMENT_DELAYED` | Payment window ended without confirmation. Do not ask an already-debited customer to pay again. |
+| `PAYMENT_CONFIRMED` | Payment succeeded, or a COD order was placed. |
+| `PAYMENT_CANCELLED` | Checkout payment session cancelled. |
+| `PAYMENT_REVIEW_REQUESTED` | A review ticket was created. |
+| `PAYMENT_REVIEW_REQUIRED` | Late bank evidence needs merchant review. |
+| `BOOKING_CONFIRMED`, `BOOKING_REJECTED`, `BOOKING_CANCELLED` | Merchant booking decision changed. |
+
+Workflow payloads include `event`, a stable `eventId`, `paymentId`, `orderId`, `paymentStatus`, `bookingStatus`, `bookingVersion`, `amount`, `currency`, `method`, `occurredAt`, and `message`. These events use the same `X-Gateway-Signature` verification and `X-Gateway-Delivery-Id` headers as existing webhooks. Verify the **raw request body** with `client.verifyWebhook` before processing it.
+
+Receiver workflow:
+
+1. Verify signature, persist the event and delivery ID in your database with unique constraints, and acknowledge with HTTP 2xx. Handle duplicates successfully without repeating side effects.
+2. Process the stored event asynchronously. Events can arrive out of order: retrieve the current payment with `getPayment(paymentId)` before updating payment status; use `bookingVersion` to prevent an older booking event overwriting a newer decision. Never treat every event as a payment success.
+3. Update your order database and publish an update through your website's own WebSocket/SSE service, or let the customer page poll your authenticated order endpoint. Verify order ownership on that endpoint.
+4. Let Paykr send WhatsApp if enabled. Do not also send the same WhatsApp notification from your webhook handler. If your website handles WhatsApp itself, turn off Paykr's customer WhatsApp switch.
+
+WhatsApp messages are queued independently of webhook delivery; failure of one does not imply failure of the other or change payment status. The Notifications page shows `PENDING`, `SENT` (sender acknowledged; not a read receipt), `FAILED`, `SKIPPED` (no longer relevant/allowed), or `UNKNOWN` (delivery may have happened). Disconnected senders retry up to five attempts. UNKNOWN messages are not automatically resent; check delivery, wait at least five minutes, and explicitly retry if necessary. Outdated payment/booking alerts and revoked consent are checked before sending. Test-mode payments do not send these real notifications.
+
+Deploy this feature with its database migration, then restart queue workers. Keep notification switches disabled until your sender and webhook receiver are ready. No historical notification backfill occurs.

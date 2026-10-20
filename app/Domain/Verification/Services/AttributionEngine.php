@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Verification\Services;
 
+use App\Domain\Notifications\Services\PaymentNotifications;
 use App\Domain\Observations\Data\NormalizedObservation;
 use App\Domain\Observations\Enums\AttributionStatus;
 use App\Domain\Payments\Enums\PaymentStatus;
@@ -260,6 +261,7 @@ final class AttributionEngine
     {
         if ($observation->attribution_status !== AttributionStatus::LATE_UNMATCHED) {
             $observation->update(['attribution_status' => AttributionStatus::LATE_UNMATCHED, 'attributed_payment_id' => $payment->id]);
+            app(PaymentNotifications::class)->record($payment, 'PAYMENT_REVIEW_REQUIRED');
             $this->audit($payment->merchant_id, $payment->id, 'LATE_OBSERVATION_DETECTED', ['observationId' => $observation->id]);
             if ($payment->customer_id !== null && ! SupportTicket::where('payment_id', $payment->id)->where('subject', '[LATE PAYMENT DETECTED] Order #'.$payment->order_id)->exists()) {
                 $ticket = SupportTicket::create(['merchant_id' => $payment->merchant_id, 'customer_id' => $payment->customer_id, 'payment_id' => $payment->id, 'subject' => '[LATE PAYMENT DETECTED] Order #'.$payment->order_id, 'status' => 'OPEN']);

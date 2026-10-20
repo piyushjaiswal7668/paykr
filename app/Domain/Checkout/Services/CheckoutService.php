@@ -14,8 +14,10 @@ use App\Domain\Observers\Services\UpiHealthService;
 use App\Domain\Payments\Enums\PaymentMethod;
 use App\Domain\Payments\Enums\PaymentStatus;
 use App\Domain\Payments\Events\PaymentActionTriggered;
+use App\Domain\Payments\Services\BookingService;
 use App\Domain\Payments\Services\PaymentApiService;
 use App\Domain\Payments\Services\PaymentMethodService;
+use App\Domain\Payments\Services\PaymentRecheckService;
 use App\Domain\Payments\Services\PaymentTimingService;
 use App\Domain\Payments\Services\PaymentTransitionService;
 use App\Domain\Payments\Services\QrCodeService;
@@ -80,6 +82,17 @@ final class CheckoutService
             }
             if (in_array($data->operation, ['stream', 'events'], true)) {
                 return new CheckoutResult(['message' => 'Subscribe to the authenticated Reverb payment channel.', 'channel' => 'payment.'.$payment->id], gone: true);
+            }
+            if (in_array($data->operation, ['recheck', 'request-review', 'notification-preferences'], true)) {
+                if (! app(ChannelAuthorizer::class)->customerOwns($payment, $data->customerToken)) {
+                    throw new ValidationException(ErrorCode::UNAUTHENTICATED);
+                }
+
+                if ($data->operation === 'notification-preferences') {
+                    return new CheckoutResult(app(BookingService::class)->consent($payment->id, (bool) $data->details['enabled'], 'CUSTOMER'));
+                }
+
+                return new CheckoutResult(app(PaymentRecheckService::class)->execute($payment->id, $data->operation === 'request-review', $data->details));
             }
             if ($data->operation === 'bind-customer') {
                 $payment = $this->bind($payment, $data, $actor);
@@ -287,7 +300,7 @@ final class CheckoutService
     {
         $branding = $this->branding->get();
         if ($payment->status->isTerminal()) {
-            return array_intersect_key($this->payments->summary($payment), array_flip(['paymentId', 'orderId', 'amount', 'amountPaise', 'currency', 'status', 'method', 'utr', 'verificationTag', 'completedAt', 'returnUrl', 'metadata'])) + ['id' => $payment->id, 'merchantName' => Merchant::findOrFail($payment->merchant_id)->business_name, 'timeRemainingSeconds' => 0, 'isTerminal' => true, 'branding' => $branding, 'upiUri' => null];
+            return array_intersect_key($this->payments->summary($payment), array_flip(['bookingStatus', 'bookingVersion', 'paymentId', 'orderId', 'amount', 'amountPaise', 'currency', 'status', 'method', 'utr', 'verificationTag', 'completedAt', 'returnUrl', 'metadata'])) + ['id' => $payment->id, 'merchantName' => Merchant::findOrFail($payment->merchant_id)->business_name, 'timeRemainingSeconds' => 0, 'isTerminal' => true, 'branding' => $branding, 'upiUri' => null];
         }
         $account = $payment->receivingAccount;
         $deadline = $payment->status === PaymentStatus::PROCESSING ? $payment->processing_expires_at : $payment->expires_at;

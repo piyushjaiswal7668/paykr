@@ -35,6 +35,15 @@ final class PaymentApiService
             return $this->create($data);
         }
         $payment = ($data->operation === 'order-cod' ? PaymentSession::where('order_id', $data->orderId) : PaymentSession::whereKey($data->id))->first() ?? throw new ValidationException(ErrorCode::PAYMENT_NOT_FOUND);
+        if ($data->operation === 'booking-status') {
+            return new PaymentApiResult(app(BookingService::class)->update($payment->id, $data->details));
+        }
+        if ($data->operation === 'notification-preferences') {
+            return new PaymentApiResult(app(BookingService::class)->consent($payment->id, (bool) $data->details['enabled'], 'MERCHANT_API_KEY'));
+        }
+        if (in_array($data->operation, ['recheck', 'request-review'], true)) {
+            return new PaymentApiResult(app(PaymentRecheckService::class)->execute($payment->id, $data->operation === 'request-review', $data->details));
+        }
         $payment = $this->timing->expireIfDue($payment->id);
         $result = $this->summary($payment);
         if (in_array($data->operation, ['cod', 'order-cod'], true)) {
@@ -48,13 +57,16 @@ final class PaymentApiService
 
     private function create(PaymentApiData $data): PaymentApiResult
     {
+        if ($data->whatsappUpdatesConsent && ! $data->identity->secret) {
+            throw new ValidationException(ErrorCode::FORBIDDEN);
+        }
         $amount = Money::fromRupees($data->amount)->paise;
 
         return DB::transaction(function () use ($data, $amount): PaymentApiResult {
             // Serialize order/idempotency decisions within this merchant.
             Merchant::whereKey($data->identity->merchantId)->lockForUpdate()->firstOrFail();
             PaymentReceivingAccount::orderBy('id')->lockForUpdate()->get();
-            $requestHash = hash('sha256', json_encode([$data->orderId, $amount, $data->method->value, $data->customerId, $data->customer, $data->deviceId, $data->returnUrl, $data->metadata], JSON_THROW_ON_ERROR));
+            $requestHash = hash('sha256', json_encode([$data->orderId, $amount, $data->method->value, $data->customerId, $data->customer, $data->deviceId, $data->returnUrl, $data->metadata, ...($data->whatsappUpdatesConsent ? [true] : [])], JSON_THROW_ON_ERROR));
             $device = $data->deviceId === null ? null : Device::byPublicId($data->deviceId)->first();
             $existing = $data->idempotencyKey === null ? null : PaymentSession::where('idempotency_key', $data->idempotencyKey)->first();
             if ($existing !== null) {
@@ -138,6 +150,10 @@ final class PaymentApiService
                 $metadata['receivingAccountSnapshot'] = ['id' => $account->id, 'upiId' => $account->upi_id, 'payeeName' => $account->payee_name, 'isMerchantEnabled' => $account->is_merchant_enabled];
             }
             $payment = PaymentSession::create(['merchant_id' => $data->identity->merchantId, 'order_id' => $order, 'amount_paise' => $amount, 'currency' => 'INR', 'method' => $data->method, 'status' => PaymentStatus::INITIATED, 'customer_id' => $customerId, 'device_id' => $device?->id, 'receiving_account_id' => $account?->id, 'return_url' => $data->returnUrl, 'idempotency_key' => $data->idempotencyKey, 'is_test' => $data->identity->isTest, 'metadata' => $metadata]);
+            if ($data->whatsappUpdatesConsent) {
+                app(BookingService::class)->consent($payment->id, true, 'MERCHANT_API_KEY');
+                $payment->refresh();
+            }
             if ($data->method !== PaymentMethod::UPI) {
                 $payment = $this->transitions->transition($payment->id, PaymentStatus::ACTIVE, new Actor(ActorType::MERCHANT_API_KEY, merchantId: $data->identity->merchantId));
             }
@@ -156,7 +172,7 @@ final class PaymentApiService
     /** @return array<string, mixed> */
     public function summary(PaymentSession $payment): array
     {
-        return ['paymentId' => $payment->id, 'orderId' => $payment->order_id, 'amount' => $payment->amount_paise / 100, 'amountPaise' => $payment->amount_paise, 'currency' => $payment->currency, 'status' => $payment->status->value, 'internalStatus' => $payment->status->value, 'method' => $payment->method->value, 'verificationLevel' => $payment->verification_level, 'verificationSources' => $payment->verification_sources ?? [], 'verificationTag' => $payment->verification_tag, 'utr' => $payment->attributedObservation?->bank_reference_number, 'completedAt' => $payment->completed_at, 'returnUrl' => $payment->return_url, 'metadata' => $this->publicMetadata($payment->metadata ?? []), 'queuePosition' => $payment->queue_position, 'checkoutUrl' => url('/checkout/'.$payment->id)];
+        return ['bookingStatus' => $payment->booking_status, 'bookingVersion' => $payment->booking_version, 'paymentId' => $payment->id, 'orderId' => $payment->order_id, 'amount' => $payment->amount_paise / 100, 'amountPaise' => $payment->amount_paise, 'currency' => $payment->currency, 'status' => $payment->status->value, 'internalStatus' => $payment->status->value, 'method' => $payment->method->value, 'verificationLevel' => $payment->verification_level, 'verificationSources' => $payment->verification_sources ?? [], 'verificationTag' => $payment->verification_tag, 'utr' => $payment->attributedObservation?->bank_reference_number, 'completedAt' => $payment->completed_at, 'returnUrl' => $payment->return_url, 'metadata' => $this->publicMetadata($payment->metadata ?? []), 'queuePosition' => $payment->queue_position, 'checkoutUrl' => url('/checkout/'.$payment->id)];
     }
 
     /** @param array<string, mixed> $metadata

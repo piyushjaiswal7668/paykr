@@ -16,7 +16,7 @@ final class MerchantApiAuthentication
 
     public function handle(Request $request, Closure $next): Response
     {
-        $identity = $this->keys->authenticate($request->header('X-Api-Key') ?? $request->header('X-Merchant-Key') ?? $request->bearerToken(), $request->header('Origin'), $request->isMethod('GET'), $request->header('X-Merchant-Id'));
+        $identity = $this->keys->authenticate($request->header('X-Api-Key') ?? $request->header('X-Merchant-Key') ?? $request->bearerToken(), $request->header('Origin'), $request->isMethod('GET') || in_array($request->route('operation'), ['recheck', 'request-review', 'booking-status', 'notification-preferences'], true), $request->header('X-Merchant-Id'));
         $request->attributes->set('api_identity', $identity);
 
         return $this->tenants->run($identity->merchantId, fn () => $next($request));
